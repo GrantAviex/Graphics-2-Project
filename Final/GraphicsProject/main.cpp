@@ -106,6 +106,8 @@ class DEMO_APP
 	ID3D11Buffer *pobjIndexBuffer;
 	ID3D11Buffer *pSphereVertexBuffer;
 	ID3D11Buffer *pSphereIndexBuffer;
+	ID3D11Buffer *pPlaneVertexBuffer;
+	ID3D11Buffer *pPlaneIndexBuffer;
 	ID3D11ShaderResourceView * sphereResource;
 	ID3D11VertexShader *pVS;
 	ID3D11PixelShader *pPS;
@@ -134,6 +136,7 @@ class DEMO_APP
 
 
 
+	ID3D11ShaderResourceView * planeResource;
 	ID3D11DepthStencilState* DSLessEqual;
 	ID3D11RasterizerState* RSCullNone;
 	ID3D11PixelShader *skyBoxShader;
@@ -143,6 +146,8 @@ class DEMO_APP
 	ID3D11RasterizerState * rState2;
 
 	VRAM_OBJECT sphere;
+	VRAM_OBJECT plane;
+	VRAM_OBJECT tunnel[4];
 	VRAM_SCENE world;
 	VRAM_SCENE world2;
 	VRAM_AMBLIGHT ambLight;
@@ -158,6 +163,8 @@ public:
 	std::vector<int> skyBoxIndicies;
 	std::vector<SIMPLE_VERTEX> objVerts[50];
 	std::vector<int> objIndex[50];
+	SIMPLE_VERTEX planeVertices[4];
+	int planeIndicies[6];
 	DEMO_APP(HINSTANCE hinst, WNDPROC proc);
 	bool Run();
 	bool loadOBJ2(const char * path, std::vector<int>* objIndicies, std::vector<SIMPLE_VERTEX>* objVertices,
@@ -593,12 +600,32 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 
 	ShowWindow(window, SW_SHOW);
 	//********************* END WARNING ************************//
+#pragma region plane
+	planeVertices[0].pos = { -225.0f, 0.0f, 75.0f };
+	planeVertices[0].uvw = { 0.0f, 0.0f, 0.0f };
+	planeVertices[1].pos = { 225.0f, 0.0f, 75.0f };
+	planeVertices[1].uvw = { 6.0f, 0.0f, 0.0f };
+	planeVertices[2].pos = { -225.0f, 0.0f, -75.0f };
+	planeVertices[2].uvw = { 0.0f, 1.0f, 0.0f };
+	planeVertices[3].pos = { 225.0f, 0.0f, -75.0f };
+	planeVertices[3].uvw = { 6.0f, 1.0f, 0.0f };
+	planeVertices[0].nrm = { 0.0f, 1.0f, 0.0f };
+	planeVertices[1].nrm = { 0.0f, 1.0f, 0.0f };
+	planeVertices[2].nrm = { 0.0f, 1.0f, 0.0f };
+	planeVertices[3].nrm = { 0.0f, 1.0f, 0.0f };
 
+	planeIndicies[0] = 0;
+	planeIndicies[1] = 1;
+	planeIndicies[2] = 2;
+	planeIndicies[3] = 2;
+	planeIndicies[4] = 1;
+	planeIndicies[5] = 3;
+#pragma endregion
 
 #pragma region UVs
 	ambLight.lightColor = { 0.5f, 0.5f, 0.5f, 1 };
 
-	dirLight.dirLightColor = { 1, 0, 0, 1 };
+	dirLight.dirLightColor = { 1, 1, 1, 1 };
 	dirLight.dirLightDirection = { 0, -1, 0, 0 };
 
 #pragma endregion
@@ -632,7 +659,7 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	// TODO: PART 1 STEP 5
 #pragma endregion
 
-	loadOBJ2("Assets/Models/Pokeball.obj", &objIndex[0], &objVerts[0], &pSphereVertexBuffer, &pSphereIndexBuffer);
+	loadOBJ2("Assets/Models/Tunnel.obj", &objIndex[0], &objVerts[0], &pSphereVertexBuffer, &pSphereIndexBuffer);
 #pragma region zBuffer
 	D3D11_TEXTURE2D_DESC zBuffDesc;
 
@@ -677,6 +704,41 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 #pragma endregion
 
 
+#pragma region vertexBuffer
+	// TODO: PART 2 STEP 3a
+	D3D11_BUFFER_DESC bufferDesc2;
+	ZeroMemory(&bufferDesc2, sizeof(bufferDesc2));
+	bufferDesc2.Usage = D3D11_USAGE_IMMUTABLE;
+	bufferDesc2.ByteWidth = sizeof(planeVertices);
+	bufferDesc2.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+	bufferDesc2.CPUAccessFlags = NULL;
+
+	D3D11_SUBRESOURCE_DATA InitData2;
+	InitData2.pSysMem = planeVertices;
+	InitData2.SysMemPitch = 0;
+	InitData2.SysMemSlicePitch = 0;
+
+	dev->CreateBuffer(&bufferDesc2, &InitData2, &pPlaneVertexBuffer);
+
+#pragma endregion
+#pragma region indexBuffer
+	// TODO: PART 2 STEP 3a
+	D3D11_BUFFER_DESC iBufferDesc2;
+	ZeroMemory(&iBufferDesc2, sizeof(iBufferDesc2));
+
+	iBufferDesc2.Usage = D3D11_USAGE_DYNAMIC;
+	iBufferDesc2.ByteWidth = sizeof(planeIndicies);
+	iBufferDesc2.BindFlags = D3D11_BIND_INDEX_BUFFER;
+	iBufferDesc2.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+
+	D3D11_SUBRESOURCE_DATA iInitData2;
+	iInitData2.pSysMem = planeIndicies;
+	iInitData2.SysMemPitch = 0;
+	iInitData2.SysMemSlicePitch = 0;
+
+	dev->CreateBuffer(&iBufferDesc2, &iInitData2, &pPlaneIndexBuffer);
+
+#pragma endregion
 
 #pragma region ShaderStuff
 
@@ -749,7 +811,8 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	shaderDesc.Texture2D = { 0, 1 };
 
 	CreateDDSTextureFromFile(dev, L"Assets/Textures/BackGroundCube1.dds", NULL, &skyBoxResource);
-	CreateDDSTextureFromFile(dev, L"Assets/Textures/BackGroundCube2.dds", NULL, &sphereResource);
+	CreateDDSTextureFromFile(dev, L"Assets/Textures/Tunnel.dds", NULL, &sphereResource);
+	CreateDDSTextureFromFile(dev, L"Assets/Textures/highway.dds", NULL, &planeResource);
 
 	D3D11_DEPTH_STENCIL_DESC dssDesc;
 	ZeroMemory(&dssDesc, sizeof(D3D11_DEPTH_STENCIL_DESC));
@@ -775,10 +838,14 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	samplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
 	dev->CreateSamplerState(&samplerDesc, &pSampler);
 	boxTimer.elapsedTime.x = 0.0f;
-	XMStoreFloat4x4(&world.viewMatrix, XMMatrixIdentity());
+	XMStoreFloat4x4(&world.viewMatrix,   XMMatrixTranslation(0.0f, -9.0f, 65.0f));
 	XMStoreFloat4x4(&world2.viewMatrix, XMMatrixIdentity());
-
-	XMStoreFloat4x4(&sphere.worldMatrix, XMMatrixScaling(0.1f, 0.1f, 0.1f));
+	XMStoreFloat4x4(&plane.worldMatrix, XMMatrixIdentity());
+	XMMATRIX charMatrix = XMMatrixScaling(0.95f,0.95f,0.95f);
+	charMatrix = charMatrix * XMMatrixRotationY(XMConvertToRadians(90));
+	XMStoreFloat4x4(&tunnel[0].worldMatrix, charMatrix * XMMatrixTranslation(225.0f, -0.5f, 3.5f));
+	XMStoreFloat4x4(&tunnel[1].worldMatrix, charMatrix * XMMatrixTranslation(-225.0f, -0.5f, 3.5f));
+	//XMStoreFloat4x4(&sphere.worldMatrix, charMatrix);
 	XMStoreFloat4x4(&world2.projectionMatrix, XMMatrixPerspectiveFovLH(XMConvertToRadians(75), BACKBUFFER_WIDTH / BACKBUFFER_HEIGHT, 1.0f, 1000));
 	XMStoreFloat4x4(&world.projectionMatrix, XMMatrixPerspectiveFovLH(XMConvertToRadians(75), BACKBUFFER_WIDTH / BACKBUFFER_HEIGHT, 1.0f, 1000));
 	CreateSphere(100, 100, &skyBoxIndicies, &skyBoxVerts, &pobjBuffer, &pobjIndexBuffer);
@@ -795,68 +862,182 @@ bool DEMO_APP::Run()
 	{
 		if (GetAsyncKeyState('Q'))
 		{
-			pos.y = 70.5f * (float)pXtime.Delta();
+			XMMATRIX worldWatever3 = XMLoadFloat4x4(&world.viewMatrix);
+			XMMATRIX InvWorld = XMMatrixInverse(NULL, worldWatever3);
+			XMMATRIX translationY = XMMatrixTranslation(0, 25.0f * (float)pXtime.Delta(), 0);
+			InvWorld = InvWorld * translationY;
+			worldWatever3 = XMMatrixInverse(NULL, InvWorld);
+			XMStoreFloat4x4(&world.viewMatrix, worldWatever3);
+
 		}
 		else if (GetAsyncKeyState('E'))
 		{
-			pos.y = -70.5f * (float)pXtime.Delta();
+			XMMATRIX worldWatever3 = XMLoadFloat4x4(&world.viewMatrix);
+			XMMATRIX InvWorld = XMMatrixInverse(NULL, worldWatever3);
+			XMMATRIX translationY = XMMatrixTranslation(0, -25.0f * (float)pXtime.Delta(), 0);
+			InvWorld = InvWorld * translationY;
+			worldWatever3 = XMMatrixInverse(NULL, InvWorld);
+			XMStoreFloat4x4(&world.viewMatrix, worldWatever3);
 		}
 		if (GetAsyncKeyState('W'))
 		{
-			pos.z = 70.5f * (float)pXtime.Delta();
+				XMMATRIX worldWatever3 = XMLoadFloat4x4(&world.viewMatrix);
+				XMMATRIX InvWorld = XMMatrixInverse(NULL, worldWatever3);
+				if (InvWorld.r[3].m128_f32[0] >= -225.0f && InvWorld.r[3].m128_f32[0] <= 225.0f && InvWorld.r[3].m128_f32[2] >= -75.0f && InvWorld.r[3].m128_f32[2] <= 75.0f)
+				{
+					XMMATRIX transXZ = XMMatrixTranslation(0, 0, 50.0f * (float)pXtime.Delta());
+					XMFLOAT3 transRot;
+					XMStoreFloat3(&transRot, InvWorld.r[2]);
+					transRot.y = 0;
+					XMMATRIX translationXZ = InvWorld;
+					XMVECTOR posR;
+					posR = XMLoadFloat3(&transRot);
+					translationXZ.r[2] = posR;
+					translationXZ = transXZ * translationXZ;
+					InvWorld.r[3] = translationXZ.r[3];
+					if (InvWorld.r[3].m128_f32[0] < -225.0f)
+						InvWorld.r[3].m128_f32[0] = -224.8f;
+					if (InvWorld.r[3].m128_f32[0] > 225.0f)
+						InvWorld.r[3].m128_f32[0] = 224.8f;
+					if (InvWorld.r[3].m128_f32[2] < -75.0f)
+						InvWorld.r[3].m128_f32[2] = -74.8f;
+					if (InvWorld.r[3].m128_f32[2] > 75.0f)
+						InvWorld.r[3].m128_f32[2] = 74.8f;
+					worldWatever3 = XMMatrixInverse(NULL, InvWorld);
+					XMStoreFloat4x4(&world.viewMatrix, worldWatever3);
+				}
 		}
 		else if (GetAsyncKeyState('S'))
 		{
-			pos.z = -70.5f * (float)pXtime.Delta();
+				XMMATRIX worldWatever3 = XMLoadFloat4x4(&world.viewMatrix);
+				XMMATRIX InvWorld = XMMatrixInverse(NULL, worldWatever3);
+				if (InvWorld.r[3].m128_f32[0] >= -225.0f && InvWorld.r[3].m128_f32[0] <= 225.0f && InvWorld.r[3].m128_f32[2] >= -75.0f && InvWorld.r[3].m128_f32[2] <= 75.0f)
+				{
+					XMMATRIX transXZ = XMMatrixTranslation(0, 0, -50.0f * (float)pXtime.Delta());
+					XMFLOAT3 transRot;
+					XMStoreFloat3(&transRot, InvWorld.r[2]);
+					transRot.y = 0;
+					XMMATRIX translationXZ = InvWorld;
+					XMVECTOR posR;
+					posR = XMLoadFloat3(&transRot);
+					translationXZ.r[2] = posR;
+					translationXZ = transXZ * translationXZ;
+					InvWorld.r[3] = translationXZ.r[3];
+					if (InvWorld.r[3].m128_f32[0] < -225.0f)
+						InvWorld.r[3].m128_f32[0] = -224.8f;
+					if (InvWorld.r[3].m128_f32[0] > 225.0f)
+						InvWorld.r[3].m128_f32[0] = 224.8f;
+					if (InvWorld.r[3].m128_f32[2] < -75.0f)
+						InvWorld.r[3].m128_f32[2] = -74.8f;
+					if (InvWorld.r[3].m128_f32[2] > 75.0f)
+						InvWorld.r[3].m128_f32[2] = 74.8f;
+					worldWatever3 = XMMatrixInverse(NULL, InvWorld);
+					XMStoreFloat4x4(&world.viewMatrix, worldWatever3);
+				}
 		}
 		if (GetAsyncKeyState('A'))
 		{
-			pos.x = -70.5f * (float)pXtime.Delta();
+				XMMATRIX worldWatever3 = XMLoadFloat4x4(&world.viewMatrix);
+				XMMATRIX InvWorld = XMMatrixInverse(NULL, worldWatever3);
+				if (InvWorld.r[3].m128_f32[0] >= -225.0f && InvWorld.r[3].m128_f32[0] <= 225.0f && InvWorld.r[3].m128_f32[2] >= -75.0f && InvWorld.r[3].m128_f32[2] <= 75.0f)
+				{
+					XMMATRIX transXZ = XMMatrixTranslation(-50.0f * (float)pXtime.Delta(), 0, 0);
+					XMFLOAT3 transRot;
+					XMStoreFloat3(&transRot, InvWorld.r[2]);
+					transRot.y = 0;
+					XMMATRIX translationXZ = InvWorld;
+					XMVECTOR posR;
+					posR = XMLoadFloat3(&transRot);
+					translationXZ.r[2] = posR;
+					translationXZ = transXZ * translationXZ;
+					InvWorld.r[3] = translationXZ.r[3];
+					if (InvWorld.r[3].m128_f32[0] < -225.0f)
+						InvWorld.r[3].m128_f32[0] = -224.8f;
+					if (InvWorld.r[3].m128_f32[0] > 225.0f)
+						InvWorld.r[3].m128_f32[0] = 224.8f;
+					if (InvWorld.r[3].m128_f32[2] < -75.0f)
+						InvWorld.r[3].m128_f32[2] = -74.8f;
+					if (InvWorld.r[3].m128_f32[2] > 75.0f)
+						InvWorld.r[3].m128_f32[2] = 74.8f;
+					worldWatever3 = XMMatrixInverse(NULL, InvWorld);
+					XMStoreFloat4x4(&world.viewMatrix, worldWatever3);
+				}
 		}
 		else if (GetAsyncKeyState('D'))
 		{
-			pos.x = 70.5f * (float)pXtime.Delta();
+				XMMATRIX worldWatever3 = XMLoadFloat4x4(&world.viewMatrix);
+				XMMATRIX InvWorld = XMMatrixInverse(NULL, worldWatever3);
+				if (InvWorld.r[3].m128_f32[0] >= -225.0f && InvWorld.r[3].m128_f32[0] <= 225.0f && InvWorld.r[3].m128_f32[2] >= -75.0f && InvWorld.r[3].m128_f32[2] <= 75.0f)
+				{
+					XMMATRIX transXZ = XMMatrixTranslation(50.0f * (float)pXtime.Delta(), 0, 0);
+					XMFLOAT3 transRot;
+					XMStoreFloat3(&transRot, InvWorld.r[2]);
+					transRot.y = 0;
+					XMMATRIX translationXZ = InvWorld;
+					XMVECTOR posR;
+					posR = XMLoadFloat3(&transRot);
+					translationXZ.r[2] = posR;
+					translationXZ = transXZ * translationXZ;
+					InvWorld.r[3] = translationXZ.r[3];
+					if (InvWorld.r[3].m128_f32[0] < -225.0f)
+						InvWorld.r[3].m128_f32[0] = -224.8f;
+					if (InvWorld.r[3].m128_f32[0] > 225.0f)
+						InvWorld.r[3].m128_f32[0] = 224.8f;
+					if (InvWorld.r[3].m128_f32[2] < -75.0f)
+						InvWorld.r[3].m128_f32[2] = -74.8f;
+					if (InvWorld.r[3].m128_f32[2] > 75.0f)
+						InvWorld.r[3].m128_f32[2] = 74.8f;
+					worldWatever3 = XMMatrixInverse(NULL, InvWorld);
+					XMStoreFloat4x4(&world.viewMatrix, worldWatever3);
+				}
 		}
-	}
-	else
-	{
-		pos = { 0.0f, 0.0f, 0.0f };
 	}
 	if (GetAsyncKeyState(VK_UP))
 	{
-		XMMATRIX worldWatever = XMLoadFloat4x4(&world.viewMatrix);
-		XMMATRIX worldInv;
-		worldInv = XMMatrixInverse(NULL, worldWatever);
-		XMMATRIX rotationY = XMMatrixRotationX(XMConvertToRadians(-90.0f * (float)pXtime.Delta()));
-		worldInv = rotationY * worldInv;
-		worldWatever = XMMatrixInverse(NULL, worldInv);
-		XMStoreFloat4x4(&world.viewMatrix, worldWatever);
+		if (rot.y > -90.0f)
+		{
+			XMMATRIX worldWatever = XMLoadFloat4x4(&world.viewMatrix);
+			XMMATRIX worldInv;
+			worldInv = XMMatrixInverse(NULL, worldWatever);
+			XMMATRIX rotationY = XMMatrixRotationX(XMConvertToRadians(-90.0f * (float)pXtime.Delta()));
+			worldInv = rotationY * worldInv;
+			worldWatever = XMMatrixInverse(NULL, worldInv);
+			XMStoreFloat4x4(&world.viewMatrix, worldWatever);
 
-		XMMATRIX worldWatever2 = XMLoadFloat4x4(&world2.viewMatrix);
-		XMMATRIX worldInv2;
-		worldInv2 = XMMatrixInverse(NULL, worldWatever2);
-		XMMATRIX rotationY2 = XMMatrixRotationX(XMConvertToRadians(-90.0f * (float)pXtime.Delta()));
-		worldInv2 = rotationY2 * worldInv2;
-		worldWatever2 = XMMatrixInverse(NULL, worldInv2);
-		XMStoreFloat4x4(&world2.viewMatrix, worldWatever2);
+			XMMATRIX worldWatever2 = XMLoadFloat4x4(&world2.viewMatrix);
+			XMMATRIX worldInv2;
+			worldInv2 = XMMatrixInverse(NULL, worldWatever2);
+			XMMATRIX rotationY2 = XMMatrixRotationX(XMConvertToRadians(-90.0f * (float)pXtime.Delta()));
+			worldInv2 = rotationY2 * worldInv2;
+			worldWatever2 = XMMatrixInverse(NULL, worldInv2);
+			XMStoreFloat4x4(&world2.viewMatrix, worldWatever2);
+
+			rot.y += -90.0f * (float)pXtime.Delta();
+		}
 	}
 	else if (GetAsyncKeyState(VK_DOWN))
 	{
-		XMMATRIX worldWatever = XMLoadFloat4x4(&world.viewMatrix);
-		XMMATRIX worldInv;
-		worldInv = XMMatrixInverse(NULL, worldWatever);
-		XMMATRIX rotationY = XMMatrixRotationX(XMConvertToRadians(90.0f * (float)pXtime.Delta()));
-		worldInv = rotationY * worldInv;
-		worldWatever = XMMatrixInverse(NULL, worldInv);
-		XMStoreFloat4x4(&world.viewMatrix, worldWatever);
+		if (rot.y < 90.0f)
+		{
+			XMMATRIX worldWatever = XMLoadFloat4x4(&world.viewMatrix);
+			XMMATRIX worldInv;
+			worldInv = XMMatrixInverse(NULL, worldWatever);
+			XMMATRIX rotationY = XMMatrixRotationX(XMConvertToRadians(90.0f * (float)pXtime.Delta()));
+			worldInv = rotationY * worldInv;
+			worldWatever = XMMatrixInverse(NULL, worldInv);
+			XMStoreFloat4x4(&world.viewMatrix, worldWatever);
 
-		XMMATRIX worldWatever2 = XMLoadFloat4x4(&world2.viewMatrix);
-		XMMATRIX worldInv2;
-		worldInv2 = XMMatrixInverse(NULL, worldWatever2);
-		XMMATRIX rotationY2 = XMMatrixRotationX(XMConvertToRadians(90.0f * (float)pXtime.Delta()));
-		worldInv2 = rotationY2 * worldInv2;
-		worldWatever2 = XMMatrixInverse(NULL, worldInv2);
-		XMStoreFloat4x4(&world2.viewMatrix, worldWatever2);
+			XMMATRIX worldWatever2 = XMLoadFloat4x4(&world2.viewMatrix);
+			XMMATRIX worldInv2;
+			worldInv2 = XMMatrixInverse(NULL, worldWatever2);
+			XMMATRIX rotationY2 = XMMatrixRotationX(XMConvertToRadians(90.0f * (float)pXtime.Delta()));
+			worldInv2 = rotationY2 * worldInv2;
+			worldWatever2 = XMMatrixInverse(NULL, worldInv2);
+			XMStoreFloat4x4(&world2.viewMatrix, worldWatever2);
+
+			rot.y += 90.0f * (float)pXtime.Delta();
+
+		}
 	}
 	if (GetAsyncKeyState(VK_LEFT))
 	{
@@ -864,7 +1045,13 @@ bool DEMO_APP::Run()
 		XMMATRIX worldInv;
 		worldInv = XMMatrixInverse(NULL, worldWatever);
 		XMMATRIX rotationX = XMMatrixRotationY(XMConvertToRadians(-90.0f * (float)pXtime.Delta()));
-		worldInv = rotationX * worldInv;
+		XMFLOAT3 transRot = { 0, 0, 0 };
+		XMMATRIX rotY = worldInv;
+		XMVECTOR posR = worldInv.r[3];
+		rotY.r[3] = XMLoadFloat3(&transRot);
+		rotY = rotY * rotationX;
+		rotY.r[3] = posR;
+		worldInv = rotY;
 		worldWatever = XMMatrixInverse(NULL, worldInv);
 		XMStoreFloat4x4(&world.viewMatrix, worldWatever);
 
@@ -872,9 +1059,16 @@ bool DEMO_APP::Run()
 		XMMATRIX worldInv2;
 		worldInv2 = XMMatrixInverse(NULL, worldWatever2);
 		XMMATRIX rotationX2 = XMMatrixRotationY(XMConvertToRadians(-90.0f * (float)pXtime.Delta()));
-		worldInv2 = rotationX2 * worldInv2;
+		XMMATRIX rotY2 = worldInv2;
+		XMVECTOR posR2 = worldInv2.r[3];
+		rotY2.r[3] = XMLoadFloat3(&transRot);
+		rotY2 = rotY2 * rotationX;
+		rotY2.r[3] = posR2;
+		worldInv2 = rotY2;
 		worldWatever2 = XMMatrixInverse(NULL, worldInv2);
 		XMStoreFloat4x4(&world2.viewMatrix, worldWatever2);
+
+		rot.x += -90.0f * (float)pXtime.Delta();
 	}
 	else if (GetAsyncKeyState(VK_RIGHT))
 	{
@@ -882,7 +1076,13 @@ bool DEMO_APP::Run()
 		XMMATRIX worldInv;
 		worldInv = XMMatrixInverse(NULL, worldWatever);
 		XMMATRIX rotationX = XMMatrixRotationY(XMConvertToRadians(90.0f * (float)pXtime.Delta()));
-		worldInv = rotationX * worldInv;
+		XMFLOAT3 transRot = { 0, 0, 0 };
+		XMMATRIX rotY = worldInv;
+		XMVECTOR posR = worldInv.r[3];
+		rotY.r[3] = XMLoadFloat3(&transRot);
+		rotY = rotY * rotationX;
+		rotY.r[3] = posR;
+		worldInv = rotY;
 		worldWatever = XMMatrixInverse(NULL, worldInv);
 		XMStoreFloat4x4(&world.viewMatrix, worldWatever);
 
@@ -890,9 +1090,16 @@ bool DEMO_APP::Run()
 		XMMATRIX worldInv2;
 		worldInv2 = XMMatrixInverse(NULL, worldWatever2);
 		XMMATRIX rotationX2 = XMMatrixRotationY(XMConvertToRadians(90.0f * (float)pXtime.Delta()));
-		worldInv2 = rotationX2 * worldInv2;
+		XMMATRIX rotY2 = worldInv2;
+		XMVECTOR posR2 = worldInv2.r[3];
+		rotY2.r[3] = XMLoadFloat3(&transRot);
+		rotY2 = rotY2 * rotationX;
+		rotY2.r[3] = posR2;
+		worldInv2 = rotY2;
 		worldWatever2 = XMMatrixInverse(NULL, worldInv2);
 		XMStoreFloat4x4(&world2.viewMatrix, worldWatever2);
+
+		rot.x += 90.0f * (float)pXtime.Delta();
 	}
 	pXtime.Signal();
 	boxTimer.elapsedTime.x += pXtime.Delta();
@@ -955,32 +1162,45 @@ bool DEMO_APP::Run()
 	deffCon->VSSetConstantBuffers(1, 1, &SceneBuffer);
 	deffCon->PSSetConstantBuffers(0, 1, &ConstAmbLightBuffer);
 	deffCon->PSSetConstantBuffers(1, 1, &ConstDirectionalLightBuffer);
-	D3D11_MAPPED_SUBRESOURCE resourceobj;
-	memset(&resourceobj, 0, sizeof(D3D11_MAPPED_SUBRESOURCE));
-	deffCon->Map(ConstBuffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &resourceobj);
-	memcpy_s(resourceobj.pData, sizeof(sphere), &sphere, sizeof(sphere));
-	deffCon->Unmap(ConstBuffer, NULL);
-
 	D3D11_MAPPED_SUBRESOURCE resourceWorld;
 	memset(&resourceWorld, 0, sizeof(D3D11_MAPPED_SUBRESOURCE));
 	deffCon->Map(SceneBuffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &resourceWorld);
-	XMMATRIX worldWatever3 = XMLoadFloat4x4(&world.viewMatrix);
-	XMMATRIX InvWorld = XMMatrixInverse(NULL, worldWatever3);
-	XMMATRIX translation = XMMatrixTranslation(pos.x, pos.y, pos.z);
-	InvWorld = translation * InvWorld;
-	//XMFLOAT4 camera;
-	//XMVECTOR pos;
-	//XMStoreFloat4(&camera, InvWorld.r[3]);
-	//pos = InvWorld.r[3];
-	//InvWorld.r[3] = pos;
-	worldWatever3 = XMMatrixInverse(NULL, InvWorld);
-	XMStoreFloat4x4(&world.viewMatrix, worldWatever3);
 	memcpy_s(resourceWorld.pData, sizeof(world), &world, sizeof(world));
 	deffCon->Unmap(SceneBuffer, NULL);
+	for (size_t i = 0; i < 2; i++)
+	{
+		D3D11_MAPPED_SUBRESOURCE resourceobj;
+		memset(&resourceobj, 0, sizeof(D3D11_MAPPED_SUBRESOURCE));
+		deffCon->Map(ConstBuffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &resourceobj);
+		memcpy_s(resourceobj.pData, sizeof(tunnel[i]), &tunnel[i], sizeof(tunnel[i]));
+		deffCon->Unmap(ConstBuffer, NULL);
+	
+	
+		deffCon->IASetVertexBuffers(0, 1, &pSphereVertexBuffer, &strides, &offset);
+		deffCon->IASetIndexBuffer(pSphereIndexBuffer, DXGI_FORMAT_R32_UINT, 0);
+		deffCon->DrawIndexed(objIndex[0].size(), 0, 0);
+	}
 
-	deffCon->IASetVertexBuffers(0, 1, &pSphereVertexBuffer, &strides, &offset);
-	deffCon->IASetIndexBuffer(pSphereIndexBuffer, DXGI_FORMAT_R32_UINT, 0);
-	deffCon->DrawIndexed(objIndex[0].size(), 0, 0);
+	//D3D11_MAPPED_SUBRESOURCE resourceobj;
+	//memset(&resourceobj, 0, sizeof(D3D11_MAPPED_SUBRESOURCE));
+	//deffCon->Map(ConstBuffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &resourceobj);
+	//memcpy_s(resourceobj.pData, sizeof(sphere), &sphere, sizeof(sphere));
+	//deffCon->Unmap(ConstBuffer, NULL);
+	//
+	//
+	//deffCon->IASetVertexBuffers(0, 1, &pSphereVertexBuffer, &strides, &offset);
+	//deffCon->IASetIndexBuffer(pSphereIndexBuffer, DXGI_FORMAT_R32_UINT, 0);
+	//deffCon->DrawIndexed(objIndex[0].size(), 0, 0);
+
+	deffCon->PSSetShaderResources(0, 1, &planeResource);
+	D3D11_MAPPED_SUBRESOURCE resource4;
+	memset(&resource4, 0, sizeof(D3D11_MAPPED_SUBRESOURCE));
+	deffCon->Map(ConstBuffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &resource4);
+	memcpy_s(resource4.pData, sizeof(plane), &plane, sizeof(plane));
+	deffCon->Unmap(ConstBuffer, NULL);
+	deffCon->IASetVertexBuffers(0, 1, &pPlaneVertexBuffer, &strides, &offset);
+	deffCon->IASetIndexBuffer(pPlaneIndexBuffer, DXGI_FORMAT_R32_UINT, 0);
+	deffCon->DrawIndexed(6, 0, 0);
 
 
 	
@@ -1014,6 +1234,9 @@ bool DEMO_APP::ShutDown()
 	skyBoxVertShader->Release();
 	skyBoxResource->Release();
 	sphereResource->Release();
+	pPlaneIndexBuffer->Release();
+	pPlaneVertexBuffer->Release();
+	planeResource->Release();
 	pSphereIndexBuffer->Release();
 	pSphereVertexBuffer->Release();
 	ConstBuffer->Release();

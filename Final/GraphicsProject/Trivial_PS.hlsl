@@ -1,4 +1,5 @@
-TextureCube baseTexture : register(t0); // first texture
+//TextureCube baseTexture : register(t0); // first texture
+texture2D baseTexture : register(t0); // first texture
 SamplerState filters[2] : register(s0); //0 = clamp 1 = wrap
 
 cbuffer ambLightInfo : register(b0)
@@ -28,14 +29,15 @@ cbuffer directionalLightInfo : register(b1)
 
 float4 main(float3 uvw : UVW, float3 surfacePos : SURFACE_POSITION, float3 normal : NORMAL) : SV_TARGET
 {
-	float4 baseColor = baseTexture.Sample(filters[0], uvw);
-	//float4 baseColor = baseTexture.Sample(filters[0], uvw.xy);
-	//clip(baseColor.w < 0.65f ? -1 : 1);
+	//float4 baseColor = baseTexture.Sample(filters[0], uvw);
+	float4 baseColor = baseTexture.Sample(filters[0], uvw.xy);
+	clip(baseColor.w < 0.65f ? -1 : 1);
 	float dirLightRatio = saturate(dot(-directionalLightDirection, normal));
 	float4 dirLightResult = dirLightRatio * directionalLightColor * baseColor;
 		float4 ambLightResult = ambLightColor * baseColor;
 		float4 Result = dirLightResult + ambLightResult;
 	return Result;
+//	return float4(0.67f, 0.19f, 0.17f, 1);
 	//	return dirLightResult;
 	// lightPos.w = radius
 	//float3 lightDir = normalize(lightPos.xyz - surfacePos);
