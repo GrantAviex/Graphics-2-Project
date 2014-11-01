@@ -6,6 +6,11 @@ cbuffer ambLightInfo : register(b0)
 {
 	float4 ambLightColor;
 };
+cbuffer directionalLightInfo : register(b1)
+{
+	float4 directionalLightColor;
+	float4 directionalLightDirection;
+};
 cbuffer pointLightInfo : register(b2)
 {
 	float4 pointLightPos;
@@ -14,50 +19,55 @@ cbuffer pointLightInfo : register(b2)
 
 cbuffer spotLightInfo : register(b3)
 {
-	float4 spotLightPos;
-	float4 spotLightColor;
-	float4 spotLightDirection;
-	float4 spotLightInnerConeRatio;
-	float4 spotLightOuterConeRatio;
+	float4 spotLightPos[6];
+	float4 spotLightColor[6];
+	float4 spotLightDirection[6];
+	float4 spotLightInnerConeRatio[6];
+	float4 spotLightOuterConeRatio[6];
 };
 
-cbuffer directionalLightInfo : register(b1)
-{
-	float4 directionalLightColor;
-	float4 directionalLightDirection;
-};
 
 float4 main(float3 uvw : UVW, float3 surfacePos : SURFACE_POSITION, float3 normal : NORMAL) : SV_TARGET
 {
-	//float4 baseColor = baseTexture.Sample(filters[0], uvw);
+//BaseColor
 	float4 baseColor = baseTexture.Sample(filters[0], uvw.xy);
 	clip(baseColor.w < 0.65f ? -1 : 1);
+
+//Directional Light
 	float dirLightRatio = saturate(dot(-directionalLightDirection, normal));
 	float4 dirLightResult = dirLightRatio * directionalLightColor * baseColor;
-		float4 ambLightResult = ambLightColor * baseColor;
-		float4 Result = dirLightResult + ambLightResult;
-	return Result;
-//	return float4(0.67f, 0.19f, 0.17f, 1);
-	//	return dirLightResult;
+
+
+//Ambient Light
+	float4 ambLightResult = ambLightColor * baseColor;
+
+//Point Light
 	// lightPos.w = radius
-	//float3 lightDir = normalize(lightPos.xyz - surfacePos);
-	//float lightRatio = saturate(dot(directionalLightDirection, normal));
-	//float attenuation = 1.0 - saturate(length(lightPos.xyz - surfacePos) / lightPos.w);
-	//float4 pointLightResult = saturate(attenuation * lightRatio) * lightColor * baseTexture.Sample(filters[0], uv);
-	//
-	//		//Spot light
-	//		float3 spotLightDir = normalize(spotLightPos.xyz - surfacePos);
-	//		float surfaceRatio = saturate(dot(-spotLightDir, normalize(spotLightDirection.xyz)));
-	//	
-	//	float spotLightRatio = saturate(dot(spotLightDir, normal.xyz));
-	//	
-	//	float spotAttenuation = 1.0 - saturate(
-	//		(spotLightInnerConeRatio.x - surfaceRatio) /
-	//		(spotLightInnerConeRatio.x - spotLightOuterConeRatio.x));
-	//	
-	//	float4 spotLightResult = saturate(spotAttenuation * spotLightRatio) * spotLightColor * baseTexture.Sample(filters[0], uv);
-	//	
-	//		return pointLightResult + spotLightResult;
-	 // get base color
+	float3 pointLightDir = normalize(pointLightPos.xyz - surfacePos);
+	float pointLightRatio = saturate(dot(pointLightDir, normal));
+	float pointLightAttenuation = 1.0 - saturate(length(pointLightPos.xyz - surfacePos) / pointLightPos.w);
+	float4 pointLightResult = saturate(pointLightAttenuation * pointLightRatio) * pointLightColor * baseColor;
+
+		//Spot light
+		float4 Result = { 0, 0, 0, 0 };
+
+	for (int i = 0; i < 6; i++)
+	{
+		float3 spotLightDir = normalize(spotLightPos[i].xyz - surfacePos);
+			float surfaceRatio = saturate(dot(-spotLightDir, normalize(spotLightDirection[i].xyz)));
+
+		float spotLightRatio = saturate(dot(spotLightDir, normal.xyz));
+
+		float spotAttenuation = 1.0 - saturate(
+			(spotLightInnerConeRatio[i].x - surfaceRatio) /
+			(spotLightInnerConeRatio[i].x - spotLightOuterConeRatio[i].x));
+
+		float4 spotLightResult = saturate(spotAttenuation * spotLightRatio) * spotLightColor[i] * baseColor;
+		Result = Result + spotLightResult;
+	}
+		
+			//		return pointLightResult + spotLightResult;
+	Result = Result + dirLightResult + ambLightResult + pointLightResult;
+	return Result;
 
 }

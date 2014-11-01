@@ -9,6 +9,7 @@ struct INPUT_VERTEX
 struct OUTPUT_VERTEX
 {
 	float3 uvwOut : UVW;
+	float3 nrm : NORMAL;
 	float4 Pos : SV_POSITION;
 };
 
@@ -33,6 +34,7 @@ OUTPUT_VERTEX main(INPUT_VERTEX input)
 	//localH = mul(localH, viewMatrix).xyww;
 	output.Pos = localH;
 	output.uvwOut = input.coordinate;
+	output.nrm = input.nrm;
 
 	return output;
 }

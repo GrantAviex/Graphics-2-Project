@@ -8,11 +8,20 @@ cbuffer TIME : register(b0)
 {
 	float4 TotalTimeElapsed;
 };
-
-float4 main(float3 uvwOut : UVW) : SV_TARGET
+cbuffer directionalLightInfo : register(b1)
 {
-	uvwOut.x = uvwOut.x + sin(uvwOut.y * 200 + (TotalTimeElapsed.x * 52)) * 0.005 * (uvwOut.y - 1);
+	float4 directionalLightColor;
+	float4 directionalLightDirection;
+};
 
-	return 	baseTexture.Sample(filters[0], uvwOut);
+float4 main(float3 uvwOut : UVW, float3 nrm : NORMAL) : SV_TARGET
+{
+	float4 baseColor = baseTexture.Sample(filters[0], uvwOut);
+	//uvwOut.x = uvwOut.x + sin(uvwOut.y * 200 + (TotalTimeElapsed.x * 52)) * 0.005 * (uvwOut.y - 1);
+	float4 dayTime = (1, 1, 1, 1);
+	float dirLightRatio = (dot(-directionalLightDirection, dayTime) + 2) / 3;
+	float4 dirLightResult = dirLightRatio * directionalLightColor * baseColor;
+
+	return dirLightResult;
 	//return baseTexture.Sample(filters[0], uvwOut);
 }

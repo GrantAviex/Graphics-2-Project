@@ -1,0 +1,9 @@
+/Final/Debug
+/Final/Release
+/Final/*.sdf
+/Final/GraphicsProject/Debug
+/Final/GraphicsProject/Release
+/Final/GraphicsProject/Assets/Textures/*.png
+/Final/GraphicsProject/Assets/Models/Materials
+/Final/GraphicsProject/Assets/Models/*.qb
+
