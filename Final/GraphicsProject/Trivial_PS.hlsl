@@ -19,11 +19,11 @@ cbuffer pointLightInfo : register(b2)
 
 cbuffer spotLightInfo : register(b3)
 {
-	float4 spotLightPos[6];
-	float4 spotLightColor[6];
-	float4 spotLightDirection[6];
-	float4 spotLightInnerConeRatio[6];
-	float4 spotLightOuterConeRatio[6];
+	float4 spotLightPos[7];
+	float4 spotLightColor[7];
+	float4 spotLightDirection[7];
+	float4 spotLightInnerConeRatio[7];
+	float4 spotLightOuterConeRatio[7];
 };
 
 
@@ -51,7 +51,7 @@ float4 main(float3 uvw : UVW, float3 surfacePos : SURFACE_POSITION, float3 norma
 		//Spot light
 		float4 Result = { 0, 0, 0, 0 };
 
-	for (int i = 0; i < 6; i++)
+	for (int i = 0; i < 7; i++)
 	{
 		float3 spotLightDir = normalize(spotLightPos[i].xyz - surfacePos);
 			float surfaceRatio = saturate(dot(-spotLightDir, normalize(spotLightDirection[i].xyz)));
