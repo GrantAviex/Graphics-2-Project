@@ -38,6 +38,7 @@ using namespace DirectX;
 #include <fstream>
 #include <istream>
 #include <sstream>
+#include <thread>
 
 #define BACKBUFFER_WIDTH	1920.0f
 #define BACKBUFFER_HEIGHT	1080.0f
@@ -205,6 +206,7 @@ public:
 	void BallStuff2();
 	void SunStuff();
 	void Input();
+	void LoadTextures(ID3D11Device* device, const wchar_t* fileName, ID3D11ShaderResourceView** textureView);
 	void CreateSphere(int LatLines, int LongLines, std::vector<int>* objIndicies, std::vector<SIMPLE_VERTEX>* objVertices, ID3D11Buffer** sphereVertBuff, ID3D11Buffer** sphereIndexBuff);
 };
 
@@ -635,6 +637,7 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 
 	ShowWindow(window, SW_SHOW);
 	//********************* END WARNING ************************//
+	std::vector<std::thread> loadThreads;
 #pragma region plane
 	planeVertices[0].pos = { -225.0f, 0.0f, 75.0f };
 	planeVertices[1].pos = { 225.0f, 0.0f, 75.0f };
@@ -724,8 +727,8 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	spotLight.spotLightPos[6] = { 0, 0, 0, 10 };
 	spotLight.spotLightColor[6] = { 0.2f, 0.2f, 1.0f, 1 };
 	spotLight.spotLightDirection[6] = { 0, -1, 0, 75 };
-	spotLight.spotLightInnerConeRatio[6].x = 0.58f;
-	spotLight.spotLightOuterConeRatio[6].x = 0.5f;
+	spotLight.spotLightInnerConeRatio[6].x = 0.98f;
+	spotLight.spotLightOuterConeRatio[6].x = 0.9f;
 
 #pragma endregion
 
@@ -737,8 +740,8 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	scd.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
 	scd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
 	scd.OutputWindow = window;
-	scd.BufferDesc.Height = BACKBUFFER_HEIGHT;
-	scd.BufferDesc.Width = BACKBUFFER_WIDTH;
+	scd.BufferDesc.Height = (UINT)BACKBUFFER_HEIGHT;
+	scd.BufferDesc.Width = (UINT)BACKBUFFER_WIDTH;
 	scd.SampleDesc.Count = 1;
 	scd.Windowed = TRUE;
 	scd.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
@@ -760,10 +763,15 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	// TODO: PART 1 STEP 5
 #pragma endregion
 
-	loadOBJ2("Assets/Models/Tunnel.obj", &objIndex[0], &objVerts[0], &pObjectVertexBuffer[0], &pObjectIndexBuffer[0]);
-	loadOBJ2("Assets/Models/Dodgeball.obj", &objIndex[1], &objVerts[1], &pObjectVertexBuffer[1], &pObjectIndexBuffer[1]);
-	loadOBJ2("Assets/Models/lamp.obj", &objIndex[2], &objVerts[2], &pObjectVertexBuffer[2], &pObjectIndexBuffer[2]);
-	loadOBJ2("Assets/Models/Dodgeball.obj", &objIndex[3], &objVerts[3], &pObjectVertexBuffer[3], &pObjectIndexBuffer[3]);
+	loadThreads.push_back(std::thread(&DEMO_APP::loadOBJ2, this, "Assets/Models/Tunnel.obj", &objIndex[0], &objVerts[0], &pObjectVertexBuffer[0], &pObjectIndexBuffer[0]));
+	loadThreads.push_back(std::thread(&DEMO_APP::loadOBJ2, this, "Assets/Models/Dodgeball.obj", &objIndex[1], &objVerts[1], &pObjectVertexBuffer[1], &pObjectIndexBuffer[1]));
+	loadThreads.push_back(std::thread(&DEMO_APP::loadOBJ2, this, "Assets/Models/lamp.obj", &objIndex[2], &objVerts[2], &pObjectVertexBuffer[2], &pObjectIndexBuffer[2]));
+	loadThreads.push_back(std::thread(&DEMO_APP::loadOBJ2, this, "Assets/Models/Dodgeball.obj", &objIndex[3], &objVerts[3], &pObjectVertexBuffer[3], &pObjectIndexBuffer[3]));
+
+	//loadOBJ2("Assets/Models/Tunnel.obj", &objIndex[0], &objVerts[0], &pObjectVertexBuffer[0], &pObjectIndexBuffer[0]);
+	//loadOBJ2("Assets/Models/Dodgeball.obj", &objIndex[1], &objVerts[1], &pObjectVertexBuffer[1], &pObjectIndexBuffer[1]);
+	//loadOBJ2("Assets/Models/lamp.obj", &objIndex[2], &objVerts[2], &pObjectVertexBuffer[2], &pObjectIndexBuffer[2]);
+	//loadOBJ2("Assets/Models/Dodgeball.obj", &objIndex[3], &objVerts[3], &pObjectVertexBuffer[3], &pObjectIndexBuffer[3]);
 
 #pragma region zBuffer
 	D3D11_TEXTURE2D_DESC zBuffDesc;
@@ -967,14 +975,23 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	ZeroMemory(&shaderDesc, sizeof(shaderDesc));
 	shaderDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
 	shaderDesc.Texture2D = { 0, 1 };
+	//threads.push_back(std::thread(&DEMO_APP::loadOBJ2, this, "Assets/Models/Tunnel.obj", &objIndex[0], &objVerts[0], &pObjectVertexBuffer[0], &pObjectIndexBuffer[0]));
 
-	CreateDDSTextureFromFile(dev, L"Assets/Textures/skybox1.dds", NULL, &skyBoxResource);
-	CreateDDSTextureFromFile(dev, L"Assets/Textures/Tunnel.dds", NULL, &objectResource[0]);
-	CreateDDSTextureFromFile(dev, L"Assets/Textures/highway.dds", NULL, &planeResource);
-	CreateDDSTextureFromFile(dev, L"Assets/Textures/dodgeball.dds", NULL, &objectResource[1]);
-	CreateDDSTextureFromFile(dev, L"Assets/Textures/lamp.dds", NULL, &objectResource[2]);
-	CreateDDSTextureFromFile(dev, L"Assets/Textures/bluedodgeball.dds", NULL, &objectResource[3]);
-	CreateDDSTextureFromFile(dev, L"Assets/Textures/grass.dds", NULL, &grassResource);
+	loadThreads.push_back(std::thread(&DEMO_APP::LoadTextures, this, dev, L"Assets/Textures/skybox1.dds",  &skyBoxResource));
+	loadThreads.push_back(std::thread(&DEMO_APP::LoadTextures, this, dev, L"Assets/Textures/Tunnel.dds",   &objectResource[0]));
+	loadThreads.push_back(std::thread(&DEMO_APP::LoadTextures, this, dev, L"Assets/Textures/highway.dds",  &planeResource));
+	loadThreads.push_back(std::thread(&DEMO_APP::LoadTextures, this, dev, L"Assets/Textures/dodgeball.dds", &objectResource[1]));
+	loadThreads.push_back(std::thread(&DEMO_APP::LoadTextures, this, dev, L"Assets/Textures/lamp.dds", &objectResource[2]));
+	loadThreads.push_back(std::thread(&DEMO_APP::LoadTextures, this, dev, L"Assets/Textures/bluedodgeball.dds", &objectResource[3]));
+	loadThreads.push_back(std::thread(&DEMO_APP::LoadTextures, this, dev, L"Assets/Textures/grass.dds", &grassResource));
+	//LoadTextures(dev, L"Assets/Textures/skybox1.dds", NULL, &skyBoxResource);
+	//CreateDDSTextureFromFile(dev, L"Assets/Textures/skybox1.dds", NULL, &skyBoxResource);
+	//CreateDDSTextureFromFile(dev, L"Assets/Textures/Tunnel.dds", NULL, &objectResource[0]);
+	//CreateDDSTextureFromFile(dev, L"Assets/Textures/highway.dds", NULL, &planeResource);
+	//CreateDDSTextureFromFile(dev, L"Assets/Textures/dodgeball.dds", NULL, &objectResource[1]);
+	//CreateDDSTextureFromFile(dev, L"Assets/Textures/lamp.dds", NULL, &objectResource[2]);
+	//CreateDDSTextureFromFile(dev, L"Assets/Textures/bluedodgeball.dds", NULL, &objectResource[3]);
+	//CreateDDSTextureFromFile(dev, L"Assets/Textures/grass.dds", NULL, &grassResource);
 
 	D3D11_DEPTH_STENCIL_DESC dssDesc;
 	ZeroMemory(&dssDesc, sizeof(D3D11_DEPTH_STENCIL_DESC));
@@ -1031,8 +1048,16 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	XMStoreFloat4x4(&world4.projectionMatrix, XMMatrixPerspectiveFovLH(XMConvertToRadians(60), BACKBUFFER_WIDTH / (BACKBUFFER_HEIGHT/2), 1.0f, 1000));
 	CreateSphere(100, 100, &skyBoxIndicies, &skyBoxVerts, &pobjBuffer, &pobjIndexBuffer);
 	//CreateSphere(100, 100,&objIndex[0],&objVerts[0],&pSphereVertexBuffer, &pSphereIndexBuffer);
+	for (auto& thread : loadThreads)
+	{
+		thread.join();
+	}
 }
 
+void DEMO_APP::LoadTextures(ID3D11Device* device, const wchar_t* fileName, ID3D11ShaderResourceView** textureView)
+{
+	CreateDDSTextureFromFile(device, fileName, NULL, textureView);
+}
 void DEMO_APP::GravityStuff()
 {
 	XMMATRIX worldWatever3 = XMMatrixIdentity();
@@ -1044,7 +1069,7 @@ void DEMO_APP::GravityStuff()
 	float height = InvWorld.r[3].m128_f32[1] > 3.0f;
 	if (Jumping && JumpTimer <= 0.75f)
 	{
-		JumpTimer += pXtime.Delta();
+		JumpTimer += (float)pXtime.Delta();
 		XMMATRIX translationY = XMMatrixTranslation(0, 25.0f * (float)pXtime.Delta(), 0);
 		InvWorld = InvWorld * translationY;
 		worldWatever3 = XMMatrixInverse(NULL, InvWorld);
@@ -1053,7 +1078,7 @@ void DEMO_APP::GravityStuff()
 	}
 	else if (Jumping && InvWorld.r[3].m128_f32[1] > 9.0f)
 	{
-		JumpTimer += pXtime.Delta();
+		JumpTimer += (float)pXtime.Delta();
 		XMMATRIX translationY = XMMatrixTranslation(0, -25.0f * (float)pXtime.Delta(), 0);
 		InvWorld = InvWorld * translationY;
 		worldWatever3 = XMMatrixInverse(NULL, InvWorld);
@@ -1078,7 +1103,7 @@ void DEMO_APP::BallStuff()
 		float ballHeight = ballMatrix.r[3].m128_f32[1];
 		XMFLOAT3 ballDirection;
 		XMStoreFloat3(&ballDirection, dodgeballDir[0]);
-		ballDirection.y -= 0.981f * pXtime.Delta();
+		ballDirection.y -= 0.981f * (float)pXtime.Delta();
 		dodgeballDir[0] = XMLoadFloat3(&ballDirection);
 		ballMatrix = ballMatrix * (XMMatrixTranslation(ballDirection.x * pXtime.Delta() * 125, ballDirection.y * pXtime.Delta() * 55, ballDirection.z * pXtime.Delta() * 125));
 		XMMATRIX rotx, roty, rotz;
@@ -1405,7 +1430,7 @@ void DEMO_APP::Input()
 		}
 		if (GetAsyncKeyState(VK_UP))
 		{
-			if (rot.y > -90.0f)
+			if (rot.y > -75.0f)
 			{
 				XMMATRIX worldInv;
 				worldInv = XMMatrixInverse(NULL, worldWatever);
@@ -1424,7 +1449,7 @@ void DEMO_APP::Input()
 		}
 		else if (GetAsyncKeyState(VK_DOWN))
 		{
-			if (rot.y < 90.0f)
+			if (rot.y < 75.0f)
 			{
 				XMMATRIX worldInv;
 				worldInv = XMMatrixInverse(NULL, worldWatever);
@@ -1547,6 +1572,7 @@ void DEMO_APP::Input()
 }
 bool DEMO_APP::Run()
 {
+	std::vector<std::thread> drawThreads;
 	UINT strides = sizeof(SIMPLE_VERTEX);
 	UINT offset = 0;
 	pXtime.Signal();
@@ -1600,14 +1626,21 @@ bool DEMO_APP::Run()
 
 	for (size_t i = 0; i < 2; i++)
 	{
+		//drawThreads.push_back(std::thread(&DEMO_APP::DrawObject, this, tunnel[i], &pObjectVertexBuffer[0], &pObjectIndexBuffer[0], objIndex[0], &objectResource[0]));
+
 		DrawObject(tunnel[i], &pObjectVertexBuffer[0], &pObjectIndexBuffer[0], objIndex[0], &objectResource[0]);
 	}
+
+	//drawThreads.push_back(std::thread(&DEMO_APP::DrawObject, this, objects[0], &pObjectVertexBuffer[1], &pObjectIndexBuffer[1], objIndex[1], &objectResource[1]));
+	//drawThreads.push_back(std::thread(&DEMO_APP::DrawObject, this, objects[7], &pObjectVertexBuffer[3], &pObjectIndexBuffer[3], objIndex[3], &objectResource[3]));
 
 	DrawObject(objects[0], &pObjectVertexBuffer[1], &pObjectIndexBuffer[1], objIndex[1], &objectResource[1]);
 	DrawObject(objects[7], &pObjectVertexBuffer[3], &pObjectIndexBuffer[3], objIndex[3], &objectResource[3]);
 	
 	for (size_t i = 0; i < 6; i++)
 	{
+		//drawThreads.push_back(std::thread(&DEMO_APP::DrawObject, this, objects[i + 1], &pObjectVertexBuffer[2], &pObjectIndexBuffer[2], objIndex[2], &objectResource[2]));
+
 		DrawObject(objects[i + 1], &pObjectVertexBuffer[2], &pObjectIndexBuffer[2], objIndex[2], &objectResource[2]);
 	}
 
@@ -1621,8 +1654,16 @@ bool DEMO_APP::Run()
 
 	for (size_t i = 6; i < 12; i++)
 		grassInd.push_back(grassIndicies[i]);
+
+	//drawThreads.push_back(std::thread(&DEMO_APP::DrawObject, this, grass[0], &pGrassVertexBuffer, &pGrassIndexBuffer, grassInd, &grassResource));
+	//
+	//drawThreads.push_back(std::thread(&DEMO_APP::DrawObject, this, plane, &pPlaneVertexBuffer, &pPlaneIndexBuffer, planeInd, &planeResource));
 	DrawObject(grass[0], &pGrassVertexBuffer, &pGrassIndexBuffer, grassInd, &grassResource);
 	DrawObject(plane, &pPlaneVertexBuffer, &pPlaneIndexBuffer, planeInd, &planeResource);
+	//for (auto& thread : drawThreads)
+	//{
+	//	thread.join();
+	//}
 #pragma region player2
 	deffCon->RSSetViewports(1, &viewport2);
 	DrawSkyBox(world4);
