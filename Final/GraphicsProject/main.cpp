@@ -42,6 +42,8 @@ using namespace DirectX;
 
 #define BACKBUFFER_WIDTH	1920.0f
 #define BACKBUFFER_HEIGHT	1080.0f
+#define MOUSESENSE_X	25
+#define MOUSESENSE_Y	25
 //************************************************************
 //************ SIMPLE WINDOWS APP CLASS **********************
 //************************************************************
@@ -93,6 +95,14 @@ class DEMO_APP
 	WNDPROC							appWndProc;
 	HWND							window;
 	// TODO: PART 1 STEP 2
+
+	// TEST CAMERA STUFF
+	XMFLOAT2 mouseAnchor;
+
+
+	//
+
+
 
 	IDXGISwapChain *swapchain;
 	ID3D11Device *dev;
@@ -176,6 +186,7 @@ public:
 	// TODO: PART 2 STEP 1
 	XMVECTOR dodgeballDir[2];
 	float JumpTimer = 0.0f;
+	bool mouseAnchored = false;
 	bool player2 = false;
 	bool Bounce = false;
 	bool Jumping = false;
@@ -205,7 +216,9 @@ public:
 	void BallStuff();
 	void BallStuff2();
 	void SunStuff();
+	void CarStuff(VRAM_OBJECT* matrix, bool Inverted, float speed);
 	void Input();
+	void RotateCamera(XMFLOAT2 mouseDiff);
 	void LoadTextures(ID3D11Device* device, const wchar_t* fileName, ID3D11ShaderResourceView** textureView);
 	void CreateSphere(int LatLines, int LongLines, std::vector<int>* objIndicies, std::vector<SIMPLE_VERTEX>* objVertices, ID3D11Buffer** sphereVertBuff, ID3D11Buffer** sphereIndexBuff);
 };
@@ -695,10 +708,10 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	grassVertices[6].nrm = { 0.0f, 1.0f, 0.0f };
 	grassVertices[7].nrm = { 0.0f, 1.0f, 0.0f };
 
-	grassIndicies[6]  = 4;
-	grassIndicies[7]  = 5;
-	grassIndicies[8]  = 6;
-	grassIndicies[9]  = 6;
+	grassIndicies[6] = 4;
+	grassIndicies[7] = 5;
+	grassIndicies[8] = 6;
+	grassIndicies[9] = 6;
 	grassIndicies[10] = 5;
 	grassIndicies[11] = 7;
 #pragma endregion
@@ -767,6 +780,7 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	loadThreads.push_back(std::thread(&DEMO_APP::loadOBJ2, this, "Assets/Models/Dodgeball.obj", &objIndex[1], &objVerts[1], &pObjectVertexBuffer[1], &pObjectIndexBuffer[1]));
 	loadThreads.push_back(std::thread(&DEMO_APP::loadOBJ2, this, "Assets/Models/lamp.obj", &objIndex[2], &objVerts[2], &pObjectVertexBuffer[2], &pObjectIndexBuffer[2]));
 	loadThreads.push_back(std::thread(&DEMO_APP::loadOBJ2, this, "Assets/Models/Dodgeball.obj", &objIndex[3], &objVerts[3], &pObjectVertexBuffer[3], &pObjectIndexBuffer[3]));
+	loadThreads.push_back(std::thread(&DEMO_APP::loadOBJ2, this, "Assets/Models/batmobile.obj", &objIndex[4], &objVerts[4], &pObjectVertexBuffer[4], &pObjectIndexBuffer[4]));
 
 	//loadOBJ2("Assets/Models/Tunnel.obj", &objIndex[0], &objVerts[0], &pObjectVertexBuffer[0], &pObjectIndexBuffer[0]);
 	//loadOBJ2("Assets/Models/Dodgeball.obj", &objIndex[1], &objVerts[1], &pObjectVertexBuffer[1], &pObjectIndexBuffer[1]);
@@ -977,13 +991,14 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	shaderDesc.Texture2D = { 0, 1 };
 	//threads.push_back(std::thread(&DEMO_APP::loadOBJ2, this, "Assets/Models/Tunnel.obj", &objIndex[0], &objVerts[0], &pObjectVertexBuffer[0], &pObjectIndexBuffer[0]));
 
-	loadThreads.push_back(std::thread(&DEMO_APP::LoadTextures, this, dev, L"Assets/Textures/skybox1.dds",  &skyBoxResource));
-	loadThreads.push_back(std::thread(&DEMO_APP::LoadTextures, this, dev, L"Assets/Textures/Tunnel.dds",   &objectResource[0]));
-	loadThreads.push_back(std::thread(&DEMO_APP::LoadTextures, this, dev, L"Assets/Textures/highway.dds",  &planeResource));
+	loadThreads.push_back(std::thread(&DEMO_APP::LoadTextures, this, dev, L"Assets/Textures/skybox1.dds", &skyBoxResource));
+	loadThreads.push_back(std::thread(&DEMO_APP::LoadTextures, this, dev, L"Assets/Textures/Tunnel.dds", &objectResource[0]));
+	loadThreads.push_back(std::thread(&DEMO_APP::LoadTextures, this, dev, L"Assets/Textures/highway.dds", &planeResource));
 	loadThreads.push_back(std::thread(&DEMO_APP::LoadTextures, this, dev, L"Assets/Textures/dodgeball.dds", &objectResource[1]));
 	loadThreads.push_back(std::thread(&DEMO_APP::LoadTextures, this, dev, L"Assets/Textures/lamp.dds", &objectResource[2]));
 	loadThreads.push_back(std::thread(&DEMO_APP::LoadTextures, this, dev, L"Assets/Textures/bluedodgeball.dds", &objectResource[3]));
 	loadThreads.push_back(std::thread(&DEMO_APP::LoadTextures, this, dev, L"Assets/Textures/grass.dds", &grassResource));
+	loadThreads.push_back(std::thread(&DEMO_APP::LoadTextures, this, dev, L"Assets/Textures/batmobile.dds", &objectResource[4]));
 	//LoadTextures(dev, L"Assets/Textures/skybox1.dds", NULL, &skyBoxResource);
 	//CreateDDSTextureFromFile(dev, L"Assets/Textures/skybox1.dds", NULL, &skyBoxResource);
 	//CreateDDSTextureFromFile(dev, L"Assets/Textures/Tunnel.dds", NULL, &objectResource[0]);
@@ -1033,8 +1048,14 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	XMStoreFloat4x4(&objects[5].worldMatrix, XMMatrixRotationY(XMConvertToRadians(90)) * XMMatrixTranslation(-120, 22, -70));
 	XMStoreFloat4x4(&objects[6].worldMatrix, XMMatrixRotationY(XMConvertToRadians(90)) * XMMatrixTranslation(120, 22, -70));
 	XMStoreFloat4x4(&objects[7].worldMatrix, ballMatrix * XMMatrixTranslation(-10.0f, 3.0f, 0));
-	XMStoreFloat4x4(&grass[0].worldMatrix,  XMMatrixIdentity());
-	XMStoreFloat4x4(&grass[1].worldMatrix,  XMMatrixIdentity());
+	XMMATRIX batmobileMatrix = XMMatrixScaling(0.5f, 0.5f, 0.5f) * XMMatrixRotationY(XMConvertToRadians(92));
+	XMMATRIX batmobileMatrix2 = XMMatrixScaling(0.5f, 0.5f, 0.5f) * XMMatrixRotationY(XMConvertToRadians(-88));
+	XMStoreFloat4x4(&objects[8].worldMatrix, batmobileMatrix * XMMatrixTranslation(200.0f, 0.0f, -20.5f));
+	XMStoreFloat4x4(&objects[9].worldMatrix, batmobileMatrix * XMMatrixTranslation(-137.0f, 0.0f, -50.5f));
+	XMStoreFloat4x4(&objects[10].worldMatrix, batmobileMatrix2 * XMMatrixTranslation(147.0f, 0.0f, 20.5f));
+	XMStoreFloat4x4(&objects[11].worldMatrix, batmobileMatrix2 * XMMatrixTranslation(-169.0f, 0.0f, 50.5f));
+	XMStoreFloat4x4(&grass[0].worldMatrix, XMMatrixIdentity());
+	XMStoreFloat4x4(&grass[1].worldMatrix, XMMatrixIdentity());
 	XMMATRIX charMatrix = XMMatrixScaling(0.95f, 0.95f, 0.95f);
 
 	charMatrix = charMatrix * XMMatrixRotationY(XMConvertToRadians(90));
@@ -1042,10 +1063,10 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	XMStoreFloat4x4(&tunnel[0].worldMatrix, charMatrix * XMMatrixTranslation(225.0f, -0.5f, 3.5f));
 	XMStoreFloat4x4(&tunnel[1].worldMatrix, charMatrix * XMMatrixTranslation(-225.0f, -0.5f, 3.5f));
 	//XMStoreFloat4x4(&sphere.worldMatrix, charMatrix);
-	XMStoreFloat4x4(&world2.projectionMatrix, XMMatrixPerspectiveFovLH(XMConvertToRadians(60), BACKBUFFER_WIDTH / (BACKBUFFER_HEIGHT/2), 1.0f, 1000));
-	XMStoreFloat4x4(&world.projectionMatrix, XMMatrixPerspectiveFovLH(XMConvertToRadians(60), BACKBUFFER_WIDTH / (BACKBUFFER_HEIGHT/2), 1.0f, 1000));
-	XMStoreFloat4x4(&world3.projectionMatrix, XMMatrixPerspectiveFovLH(XMConvertToRadians(60), BACKBUFFER_WIDTH / (BACKBUFFER_HEIGHT/2), 1.0f, 1000));
-	XMStoreFloat4x4(&world4.projectionMatrix, XMMatrixPerspectiveFovLH(XMConvertToRadians(60), BACKBUFFER_WIDTH / (BACKBUFFER_HEIGHT/2), 1.0f, 1000));
+	XMStoreFloat4x4(&world2.projectionMatrix, XMMatrixPerspectiveFovLH(XMConvertToRadians(60), BACKBUFFER_WIDTH / (BACKBUFFER_HEIGHT / 2), 1.0f, 1000));
+	XMStoreFloat4x4(&world.projectionMatrix, XMMatrixPerspectiveFovLH(XMConvertToRadians(60), BACKBUFFER_WIDTH / (BACKBUFFER_HEIGHT / 2), 1.0f, 1000));
+	XMStoreFloat4x4(&world3.projectionMatrix, XMMatrixPerspectiveFovLH(XMConvertToRadians(60), BACKBUFFER_WIDTH / (BACKBUFFER_HEIGHT / 2), 1.0f, 1000));
+	XMStoreFloat4x4(&world4.projectionMatrix, XMMatrixPerspectiveFovLH(XMConvertToRadians(60), BACKBUFFER_WIDTH / (BACKBUFFER_HEIGHT / 2), 1.0f, 1000));
 	CreateSphere(100, 100, &skyBoxIndicies, &skyBoxVerts, &pobjBuffer, &pobjIndexBuffer);
 	//CreateSphere(100, 100,&objIndex[0],&objVerts[0],&pSphereVertexBuffer, &pSphereIndexBuffer);
 	for (auto& thread : loadThreads)
@@ -1053,7 +1074,6 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 		thread.join();
 	}
 }
-
 void DEMO_APP::LoadTextures(ID3D11Device* device, const wchar_t* fileName, ID3D11ShaderResourceView** textureView)
 {
 	CreateDDSTextureFromFile(device, fileName, NULL, textureView);
@@ -1131,7 +1151,7 @@ void DEMO_APP::BallStuff()
 		float randX = static_cast <float> (rand()) / (static_cast <float> (RAND_MAX / (1))) + 0.5f;
 		float randY = static_cast <float> (rand()) / (static_cast <float> (RAND_MAX / (0.5f))) + 0.0f;
 		pointLight.lightColor = { randX, randY, 0, 1 };
-		if (ballHeight <= 3.0f )
+		if (ballHeight <= 3.0f)
 		{
 			Throw = false;
 			Bounce = true;
@@ -1142,7 +1162,7 @@ void DEMO_APP::BallStuff()
 				Bounce = false;
 			}
 			dodgeballDir[0] = XMLoadFloat3(&ballDirection);
-			
+
 
 		}
 	}
@@ -1238,9 +1258,269 @@ void DEMO_APP::SunStuff()
 		spotLight.spotLightColor[4] = { 0, 0, 0, 1 };
 	}
 }
+void DEMO_APP::CarStuff(VRAM_OBJECT* matrix, bool Inverted, float speed)
+{
+	XMMATRIX localMatrix = XMLoadFloat4x4(&matrix->worldMatrix);
+	int inc = speed;
+	if (Inverted)
+		inc *= -1;
 
+	float time = pXtime.SmoothDelta();
+	XMMATRIX transMatrix = XMMatrixTranslation(inc * time, 0, 0);
+	localMatrix = localMatrix * transMatrix;
+	XMVECTOR pos = localMatrix.r[3];
+	if (!Inverted)
+	{
+		if (pos.m128_f32[0] > 250)
+			pos.m128_f32[0] = -300;
+	}
+	else
+	{
+		if (pos.m128_f32[0] < -250)
+			pos.m128_f32[0] = 300;
+	}
+	localMatrix.r[3] = pos;
+	XMStoreFloat4x4(&matrix->worldMatrix, localMatrix);
+}
+void DEMO_APP::RotateCamera(XMFLOAT2 mouseDiff)
+{
+	XMMATRIX worldWatever = XMMatrixIdentity();
+	XMMATRIX worldWatever2 = XMMatrixIdentity();
+	XMFLOAT3 rot;
+	if (!player2)
+	{
+		worldWatever = XMLoadFloat4x4(&world.viewMatrix);
+		worldWatever2 = XMLoadFloat4x4(&world2.viewMatrix);
+		rot = rotP1;
+	}
+	else
+	{
+		worldWatever = XMLoadFloat4x4(&world3.viewMatrix);
+		worldWatever2 = XMLoadFloat4x4(&world4.viewMatrix);
+		rot = rotP2;
+	}
+
+	bool test1 = (mouseDiff.y < 0 && rot.y > -75.0f);
+	bool test2 = (mouseDiff.y > 0 && rot.y < 75.0f);
+	if ( test1 || test2 )
+	{
+		XMMATRIX worldInv;
+		worldInv = XMMatrixInverse(NULL, worldWatever);
+		XMMATRIX rotationY = XMMatrixRotationX(XMConvertToRadians(mouseDiff.y * MOUSESENSE_Y * (float)pXtime.Delta()));
+		worldInv = rotationY * worldInv;
+		worldWatever = XMMatrixInverse(NULL, worldInv);
+
+		XMMATRIX worldInv2;
+		worldInv2 = XMMatrixInverse(NULL, worldWatever2);
+		XMMATRIX rotationY2 = XMMatrixRotationX(XMConvertToRadians(mouseDiff.y * MOUSESENSE_Y * (float)pXtime.Delta()));
+		worldInv2 = rotationY2 * worldInv2;
+		worldWatever2 = XMMatrixInverse(NULL, worldInv2);
+
+		rot.y += mouseDiff.y * MOUSESENSE_Y * (float)pXtime.Delta();
+	}
+	if (mouseDiff.x < 0 || mouseDiff.x > 0)
+	{
+		XMMATRIX worldInv;
+		worldInv = XMMatrixInverse(NULL, worldWatever);
+		XMMATRIX rotationX = XMMatrixRotationY(XMConvertToRadians(mouseDiff.x * MOUSESENSE_X * (float)pXtime.Delta()));
+		XMFLOAT3 transRot = { 0, 0, 0 };
+		XMMATRIX rotY = worldInv;
+		XMVECTOR posR = worldInv.r[3];
+		rotY.r[3] = XMLoadFloat3(&transRot);
+		rotY = rotY * rotationX;
+		rotY.r[3] = posR;
+		worldInv = rotY;
+		worldWatever = XMMatrixInverse(NULL, worldInv);
+
+		XMMATRIX worldInv2;
+		worldInv2 = XMMatrixInverse(NULL, worldWatever2);
+		XMMATRIX rotationX2 = XMMatrixRotationY(XMConvertToRadians(mouseDiff.x * MOUSESENSE_X *  (float)pXtime.Delta()));
+		XMMATRIX rotY2 = worldInv2;
+		XMVECTOR posR2 = worldInv2.r[3];
+		rotY2.r[3] = XMLoadFloat3(&transRot);
+		rotY2 = rotY2 * rotationX;
+		rotY2.r[3] = posR2;
+		worldInv2 = rotY2;
+		worldWatever2 = XMMatrixInverse(NULL, worldInv2);
+
+		rot.x += mouseDiff.x * MOUSESENSE_X * (float)pXtime.Delta();
+	}
+	if (!player2)
+	{
+		XMStoreFloat4x4(&world.viewMatrix, worldWatever);
+		XMStoreFloat4x4(&world2.viewMatrix, worldWatever2);
+		rotP1 = rot;
+	}
+	else
+	{
+
+		XMStoreFloat4x4(&world3.viewMatrix, worldWatever);
+		XMStoreFloat4x4(&world4.viewMatrix, worldWatever2);
+		rotP2 = rot;
+	}
+	//if (GetAsyncKeyState(VK_UP))
+	//{
+	//	if (rot.y > -75.0f)
+	//	{
+	//		XMMATRIX worldInv;
+	//		worldInv = XMMatrixInverse(NULL, worldWatever);
+	//		XMMATRIX rotationY = XMMatrixRotationX(XMConvertToRadians(-90.0f * (float)pXtime.Delta()));
+	//		worldInv = rotationY * worldInv;
+	//		worldWatever = XMMatrixInverse(NULL, worldInv);
+	//
+	//		XMMATRIX worldInv2;
+	//		worldInv2 = XMMatrixInverse(NULL, worldWatever2);
+	//		XMMATRIX rotationY2 = XMMatrixRotationX(XMConvertToRadians(-90.0f * (float)pXtime.Delta()));
+	//		worldInv2 = rotationY2 * worldInv2;
+	//		worldWatever2 = XMMatrixInverse(NULL, worldInv2);
+	//
+	//		rot.y += -90.0f * (float)pXtime.Delta();
+	//	}
+	//}
+	//else if (GetAsyncKeyState(VK_DOWN))
+	//{
+	//	if (rot.y < 75.0f)
+	//	{
+	//		XMMATRIX worldInv;
+	//		worldInv = XMMatrixInverse(NULL, worldWatever);
+	//		XMMATRIX rotationY = XMMatrixRotationX(XMConvertToRadians(90.0f * (float)pXtime.Delta()));
+	//		worldInv = rotationY * worldInv;
+	//		worldWatever = XMMatrixInverse(NULL, worldInv);
+	//
+	//		XMMATRIX worldInv2;
+	//		worldInv2 = XMMatrixInverse(NULL, worldWatever2);
+	//		XMMATRIX rotationY2 = XMMatrixRotationX(XMConvertToRadians(90.0f * (float)pXtime.Delta()));
+	//		worldInv2 = rotationY2 * worldInv2;
+	//		worldWatever2 = XMMatrixInverse(NULL, worldInv2);
+	//
+	//		rot.y += 90.0f * (float)pXtime.Delta();
+	//
+	//	}
+	//}
+	//
+	//if (!player2)
+	//{
+	//	XMStoreFloat4x4(&world.viewMatrix, worldWatever);
+	//	XMStoreFloat4x4(&world2.viewMatrix, worldWatever2);
+	//	rotP1 = rot;
+	//}
+	//else
+	//{
+	//
+	//	XMStoreFloat4x4(&world3.viewMatrix, worldWatever);
+	//	XMStoreFloat4x4(&world4.viewMatrix, worldWatever2);
+	//	rotP2 = rot;
+	//}
+	//XMMATRIX worldWatever = XMMatrixIdentity();
+	//XMMATRIX worldWatever2 = XMMatrixIdentity();
+	//XMFLOAT3 rot;
+	//if (!player2)
+	//{
+	//	worldWatever = XMLoadFloat4x4(&world.viewMatrix);
+	//	worldWatever2 = XMLoadFloat4x4(&world2.viewMatrix);
+	//	rot = rotP1;
+	//}
+	//else
+	//{
+	//
+	//	worldWatever = XMLoadFloat4x4(&world3.viewMatrix);
+	//	worldWatever2 = XMLoadFloat4x4(&world4.viewMatrix);
+	//	rot = rotP2;
+	//}
+	//if (GetAsyncKeyState(VK_LEFT))
+	//{
+	//	XMMATRIX worldInv;
+	//	worldInv = XMMatrixInverse(NULL, worldWatever);
+	//	XMMATRIX rotationX = XMMatrixRotationY(XMConvertToRadians(-90.0f * (float)pXtime.Delta()));
+	//	XMFLOAT3 transRot = { 0, 0, 0 };
+	//	XMMATRIX rotY = worldInv;
+	//	XMVECTOR posR = worldInv.r[3];
+	//	rotY.r[3] = XMLoadFloat3(&transRot);
+	//	rotY = rotY * rotationX;
+	//	rotY.r[3] = posR;
+	//	worldInv = rotY;
+	//	worldWatever = XMMatrixInverse(NULL, worldInv);
+	//
+	//	XMMATRIX worldInv2;
+	//	worldInv2 = XMMatrixInverse(NULL, worldWatever2);
+	//	XMMATRIX rotationX2 = XMMatrixRotationY(XMConvertToRadians(-90.0f * (float)pXtime.Delta()));
+	//	XMMATRIX rotY2 = worldInv2;
+	//	XMVECTOR posR2 = worldInv2.r[3];
+	//	rotY2.r[3] = XMLoadFloat3(&transRot);
+	//	rotY2 = rotY2 * rotationX;
+	//	rotY2.r[3] = posR2;
+	//	worldInv2 = rotY2;
+	//	worldWatever2 = XMMatrixInverse(NULL, worldInv2);
+	//
+	//	rot.x += -90.0f * (float)pXtime.Delta();
+	//}
+	//else if (GetAsyncKeyState(VK_RIGHT))
+	//{
+	//	XMMATRIX worldInv;
+	//	worldInv = XMMatrixInverse(NULL, worldWatever);
+	//	XMMATRIX rotationX = XMMatrixRotationY(XMConvertToRadians(90.0f * (float)pXtime.Delta()));
+	//	XMFLOAT3 transRot = { 0, 0, 0 };
+	//	XMMATRIX rotY = worldInv;
+	//	XMVECTOR posR = worldInv.r[3];
+	//	rotY.r[3] = XMLoadFloat3(&transRot);
+	//	rotY = rotY * rotationX;
+	//	rotY.r[3] = posR;
+	//	worldInv = rotY;
+	//	worldWatever = XMMatrixInverse(NULL, worldInv);
+	//
+	//	XMMATRIX worldInv2;
+	//	worldInv2 = XMMatrixInverse(NULL, worldWatever2);
+	//	XMMATRIX rotationX2 = XMMatrixRotationY(XMConvertToRadians(90.0f * (float)pXtime.Delta()));
+	//	XMMATRIX rotY2 = worldInv2;
+	//	XMVECTOR posR2 = worldInv2.r[3];
+	//	rotY2.r[3] = XMLoadFloat3(&transRot);
+	//	rotY2 = rotY2 * rotationX;
+	//	rotY2.r[3] = posR2;
+	//	worldInv2 = rotY2;
+	//	worldWatever2 = XMMatrixInverse(NULL, worldInv2);
+	//
+	//	rot.x += 90.0f * (float)pXtime.Delta();
+	//}
+	//if (!player2)
+	//{
+	//	XMStoreFloat4x4(&world.viewMatrix, worldWatever);
+	//	XMStoreFloat4x4(&world2.viewMatrix, worldWatever2);
+	//	rotP1 = rot;
+	//}
+	//else
+	//{
+	//
+	//	XMStoreFloat4x4(&world3.viewMatrix, worldWatever);
+	//	XMStoreFloat4x4(&world4.viewMatrix, worldWatever2);
+	//	rotP2 = rot;
+	//}
+}
 void DEMO_APP::Input()
 {
+	POINT mPos;
+	XMFLOAT2 mousePos;
+	GetCursorPos(&mPos);
+	mousePos.x = (float)mPos.x;
+	mousePos.y = (float)mPos.y;
+
+	if (mouseAnchored)
+	{
+		if (mousePos.x != mouseAnchor.x || mousePos.y != mouseAnchor.y)
+		{
+			XMFLOAT2 mouseDiff = { 0, 0 };
+			mouseDiff.x = mousePos.x - mouseAnchor.x;
+			mouseDiff.y = mousePos.y - mouseAnchor.y;
+			RotateCamera(mouseDiff);
+		}
+	}
+	if (GetAsyncKeyState(VK_RBUTTON))
+	{
+		mouseAnchored = true;
+		mouseAnchor.x = (float)mPos.x;
+		mouseAnchor.y = (float)mPos.y;
+	}
+	else
+		mouseAnchored = false;
 	if (GetAsyncKeyState(VK_SPACE))
 	{
 		if (!Jumping)
@@ -1410,165 +1690,7 @@ void DEMO_APP::Input()
 	}
 #pragma endregion
 
-#pragma region Rotation
-	if (GetAsyncKeyState(VK_UP) || GetAsyncKeyState(VK_DOWN))
-	{
-		XMMATRIX worldWatever = XMMatrixIdentity();
-		XMMATRIX worldWatever2 = XMMatrixIdentity();
-		XMFLOAT3 rot;
-		if (!player2)
-		{
-			worldWatever = XMLoadFloat4x4(&world.viewMatrix);
-			worldWatever2 = XMLoadFloat4x4(&world2.viewMatrix);
-			rot = rotP1;
-		}
-		else
-		{
-			worldWatever = XMLoadFloat4x4(&world3.viewMatrix);
-			worldWatever2 = XMLoadFloat4x4(&world4.viewMatrix);
-			rot = rotP2;
-		}
-		if (GetAsyncKeyState(VK_UP))
-		{
-			if (rot.y > -75.0f)
-			{
-				XMMATRIX worldInv;
-				worldInv = XMMatrixInverse(NULL, worldWatever);
-				XMMATRIX rotationY = XMMatrixRotationX(XMConvertToRadians(-90.0f * (float)pXtime.Delta()));
-				worldInv = rotationY * worldInv;
-				worldWatever = XMMatrixInverse(NULL, worldInv);
 
-				XMMATRIX worldInv2;
-				worldInv2 = XMMatrixInverse(NULL, worldWatever2);
-				XMMATRIX rotationY2 = XMMatrixRotationX(XMConvertToRadians(-90.0f * (float)pXtime.Delta()));
-				worldInv2 = rotationY2 * worldInv2;
-				worldWatever2 = XMMatrixInverse(NULL, worldInv2);
-
-				rot.y += -90.0f * (float)pXtime.Delta();
-			}
-		}
-		else if (GetAsyncKeyState(VK_DOWN))
-		{
-			if (rot.y < 75.0f)
-			{
-				XMMATRIX worldInv;
-				worldInv = XMMatrixInverse(NULL, worldWatever);
-				XMMATRIX rotationY = XMMatrixRotationX(XMConvertToRadians(90.0f * (float)pXtime.Delta()));
-				worldInv = rotationY * worldInv;
-				worldWatever = XMMatrixInverse(NULL, worldInv);
-
-				XMMATRIX worldInv2;
-				worldInv2 = XMMatrixInverse(NULL, worldWatever2);
-				XMMATRIX rotationY2 = XMMatrixRotationX(XMConvertToRadians(90.0f * (float)pXtime.Delta()));
-				worldInv2 = rotationY2 * worldInv2;
-				worldWatever2 = XMMatrixInverse(NULL, worldInv2);
-
-				rot.y += 90.0f * (float)pXtime.Delta();
-
-			}
-		}
-
-		if (!player2)
-		{
-			XMStoreFloat4x4(&world.viewMatrix, worldWatever);
-			XMStoreFloat4x4(&world2.viewMatrix, worldWatever2);
-			rotP1 = rot;
-		}
-		else
-		{
-
-			XMStoreFloat4x4(&world3.viewMatrix, worldWatever);
-			XMStoreFloat4x4(&world4.viewMatrix, worldWatever2);
-			rotP2 = rot;
-		}
-	}
-	if (GetAsyncKeyState(VK_RIGHT) || GetAsyncKeyState(VK_LEFT))
-	{
-		XMMATRIX worldWatever = XMMatrixIdentity();
-		XMMATRIX worldWatever2 = XMMatrixIdentity();
-		XMFLOAT3 rot;
-		if (!player2)
-		{
-			worldWatever = XMLoadFloat4x4(&world.viewMatrix);
-			worldWatever2 = XMLoadFloat4x4(&world2.viewMatrix);
-			rot = rotP1;
-		}
-		else
-		{
-
-			worldWatever = XMLoadFloat4x4(&world3.viewMatrix);
-			worldWatever2 = XMLoadFloat4x4(&world4.viewMatrix);
-			rot = rotP2;
-		}
-		if (GetAsyncKeyState(VK_LEFT))
-		{
-			XMMATRIX worldInv;
-			worldInv = XMMatrixInverse(NULL, worldWatever);
-			XMMATRIX rotationX = XMMatrixRotationY(XMConvertToRadians(-90.0f * (float)pXtime.Delta()));
-			XMFLOAT3 transRot = { 0, 0, 0 };
-			XMMATRIX rotY = worldInv;
-			XMVECTOR posR = worldInv.r[3];
-			rotY.r[3] = XMLoadFloat3(&transRot);
-			rotY = rotY * rotationX;
-			rotY.r[3] = posR;
-			worldInv = rotY;
-			worldWatever = XMMatrixInverse(NULL, worldInv);
-
-			XMMATRIX worldInv2;
-			worldInv2 = XMMatrixInverse(NULL, worldWatever2);
-			XMMATRIX rotationX2 = XMMatrixRotationY(XMConvertToRadians(-90.0f * (float)pXtime.Delta()));
-			XMMATRIX rotY2 = worldInv2;
-			XMVECTOR posR2 = worldInv2.r[3];
-			rotY2.r[3] = XMLoadFloat3(&transRot);
-			rotY2 = rotY2 * rotationX;
-			rotY2.r[3] = posR2;
-			worldInv2 = rotY2;
-			worldWatever2 = XMMatrixInverse(NULL, worldInv2);
-
-			rot.x += -90.0f * (float)pXtime.Delta();
-		}
-		else if (GetAsyncKeyState(VK_RIGHT))
-		{
-			XMMATRIX worldInv;
-			worldInv = XMMatrixInverse(NULL, worldWatever);
-			XMMATRIX rotationX = XMMatrixRotationY(XMConvertToRadians(90.0f * (float)pXtime.Delta()));
-			XMFLOAT3 transRot = { 0, 0, 0 };
-			XMMATRIX rotY = worldInv;
-			XMVECTOR posR = worldInv.r[3];
-			rotY.r[3] = XMLoadFloat3(&transRot);
-			rotY = rotY * rotationX;
-			rotY.r[3] = posR;
-			worldInv = rotY;
-			worldWatever = XMMatrixInverse(NULL, worldInv);
-
-			XMMATRIX worldInv2;
-			worldInv2 = XMMatrixInverse(NULL, worldWatever2);
-			XMMATRIX rotationX2 = XMMatrixRotationY(XMConvertToRadians(90.0f * (float)pXtime.Delta()));
-			XMMATRIX rotY2 = worldInv2;
-			XMVECTOR posR2 = worldInv2.r[3];
-			rotY2.r[3] = XMLoadFloat3(&transRot);
-			rotY2 = rotY2 * rotationX;
-			rotY2.r[3] = posR2;
-			worldInv2 = rotY2;
-			worldWatever2 = XMMatrixInverse(NULL, worldInv2);
-
-			rot.x += 90.0f * (float)pXtime.Delta();
-		}
-		if (!player2)
-		{
-			XMStoreFloat4x4(&world.viewMatrix, worldWatever);
-			XMStoreFloat4x4(&world2.viewMatrix, worldWatever2);
-			rotP1 = rot;
-		}
-		else
-		{
-
-			XMStoreFloat4x4(&world3.viewMatrix, worldWatever);
-			XMStoreFloat4x4(&world4.viewMatrix, worldWatever2);
-			rotP2 = rot;
-		}
-	}
-#pragma endregion
 }
 bool DEMO_APP::Run()
 {
@@ -1576,7 +1698,10 @@ bool DEMO_APP::Run()
 	UINT strides = sizeof(SIMPLE_VERTEX);
 	UINT offset = 0;
 	pXtime.Signal();
-
+	CarStuff(&objects[8], false, 510.0f);
+	CarStuff(&objects[9], false, 570.0f);
+	CarStuff(&objects[10], true, 495.0f);
+	CarStuff(&objects[11], true, 545.0f);
 	boxTimer.elapsedTime.x += pXtime.Delta();
 	//cubeVertices.rotationMatrix = XMMatrixRotationY(XMConvertToRadians(57.3) * pXtime.Delta()) * cubeMatrics.rotationMatrix;
 	Input();
@@ -1636,7 +1761,7 @@ bool DEMO_APP::Run()
 
 	DrawObject(objects[0], &pObjectVertexBuffer[1], &pObjectIndexBuffer[1], objIndex[1], &objectResource[1]);
 	DrawObject(objects[7], &pObjectVertexBuffer[3], &pObjectIndexBuffer[3], objIndex[3], &objectResource[3]);
-	
+
 	for (size_t i = 0; i < 6; i++)
 	{
 		//drawThreads.push_back(std::thread(&DEMO_APP::DrawObject, this, objects[i + 1], &pObjectVertexBuffer[2], &pObjectIndexBuffer[2], objIndex[2], &objectResource[2]));
@@ -1660,6 +1785,10 @@ bool DEMO_APP::Run()
 	//drawThreads.push_back(std::thread(&DEMO_APP::DrawObject, this, plane, &pPlaneVertexBuffer, &pPlaneIndexBuffer, planeInd, &planeResource));
 	DrawObject(grass[0], &pGrassVertexBuffer, &pGrassIndexBuffer, grassInd, &grassResource);
 	DrawObject(plane, &pPlaneVertexBuffer, &pPlaneIndexBuffer, planeInd, &planeResource);
+	DrawObject(objects[8], &pObjectVertexBuffer[4], &pObjectIndexBuffer[4], objIndex[4], &objectResource[4]);
+	DrawObject(objects[9], &pObjectVertexBuffer[4], &pObjectIndexBuffer[4], objIndex[4], &objectResource[4]);
+	DrawObject(objects[10], &pObjectVertexBuffer[4], &pObjectIndexBuffer[4], objIndex[4], &objectResource[4]);
+	DrawObject(objects[11], &pObjectVertexBuffer[4], &pObjectIndexBuffer[4], objIndex[4], &objectResource[4]);
 	//for (auto& thread : drawThreads)
 	//{
 	//	thread.join();
@@ -1677,7 +1806,7 @@ bool DEMO_APP::Run()
 	deffCon->PSSetConstantBuffers(1, 1, &ConstDirectionalLightBuffer);
 	deffCon->PSSetConstantBuffers(2, 1, &ConstPointLightBuffer);
 	deffCon->PSSetConstantBuffers(3, 1, &ConstSpotLightBuffer);
-	
+
 	resourceWorld = {};
 	memset(&resourceWorld, 0, sizeof(D3D11_MAPPED_SUBRESOURCE));
 	deffCon->Map(SceneBuffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &resourceWorld);
@@ -1691,7 +1820,7 @@ bool DEMO_APP::Run()
 
 	DrawObject(objects[0], &pObjectVertexBuffer[1], &pObjectIndexBuffer[1], objIndex[1], &objectResource[1]);
 	DrawObject(objects[7], &pObjectVertexBuffer[3], &pObjectIndexBuffer[3], objIndex[3], &objectResource[3]);
-	
+
 	for (size_t i = 0; i < 6; i++)
 	{
 		DrawObject(objects[i + 1], &pObjectVertexBuffer[2], &pObjectIndexBuffer[2], objIndex[2], &objectResource[2]);
@@ -1699,7 +1828,10 @@ bool DEMO_APP::Run()
 
 	DrawObject(grass[0], &pGrassVertexBuffer, &pGrassIndexBuffer, grassInd, &grassResource);
 	DrawObject(plane, &pPlaneVertexBuffer, &pPlaneIndexBuffer, planeInd, &planeResource);
-
+	DrawObject(objects[8], &pObjectVertexBuffer[4], &pObjectIndexBuffer[4], objIndex[4], &objectResource[4]);
+	DrawObject(objects[9], &pObjectVertexBuffer[4], &pObjectIndexBuffer[4], objIndex[4], &objectResource[4]);
+	DrawObject(objects[10], &pObjectVertexBuffer[4], &pObjectIndexBuffer[4], objIndex[4], &objectResource[4]);
+	DrawObject(objects[11], &pObjectVertexBuffer[4], &pObjectIndexBuffer[4], objIndex[4], &objectResource[4]);
 #pragma endregion
 	deffCon->FinishCommandList(true, &pCList);
 	devcon->ExecuteCommandList(pCList, true);
@@ -1796,7 +1928,7 @@ bool DEMO_APP::ShutDown()
 	pPlaneVertexBuffer->Release();
 	pGrassIndexBuffer->Release();
 	pGrassVertexBuffer->Release();
-	for (size_t i = 0; i < 4; i++)
+	for (size_t i = 0; i < 5; i++)
 	{
 		objectResource[i]->Release();
 		pObjectIndexBuffer[i]->Release();
