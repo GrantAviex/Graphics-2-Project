@@ -31,10 +31,10 @@ float4 main(float3 uvw : UVW, float3 surfacePos : SURFACE_POSITION, float3 norma
 {
 //BaseColor
 	float4 baseColor = baseTexture.Sample(filters[0], uvw.xy);
-	clip(baseColor.w < 0.65f ? -1 : 1);
+	//clip(baseColor.w < 0.99f ? -1 : 1);
 
 //Directional Light
-	float dirLightRatio = saturate(dot(-directionalLightDirection, normal));
+	float dirLightRatio = saturate(dot(-directionalLightDirection.xyz, normal));
 	float4 dirLightResult = dirLightRatio * directionalLightColor * baseColor;
 
 

@@ -35,11 +35,11 @@ OUTPUT_VERTEX main(INPUT_VERTEX input)
 
 
 	localH = mul(localH, worldMatrix);
+	sendToRasterizer.surfacePos = localH.xyz;
 	localH = mul(localH, viewMatrix);
 	localH = mul(localH, projectionMatrix);
 	sendToRasterizer.projectedCoordinate = localH;
 	sendToRasterizer.uvwOut = input.uvwIn;
-	sendToRasterizer.surfacePos = input.coordinate;
 	sendToRasterizer.normal = input.nrm;
 
 	return sendToRasterizer;

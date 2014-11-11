@@ -31,8 +31,8 @@ using namespace DirectX;
 // TODO: PART 2 STEP 6
 #include "Trivial_PS.csh"
 #include "Trivial_VS.csh"
-#include "SkyBox.csh"
-#include "SkyBoxVS.csh"
+#include "SkyBox_PS.csh"
+#include "SkyBox_VS.csh"
 #include "DDSTextureLoader.h"
 #include <vector>
 #include <fstream>
@@ -133,6 +133,7 @@ class DEMO_APP
 	ID3D11PixelShader *pPS;
 	ID3D11SamplerState * pSampler;
 	ID3D11CommandList* pCList;
+	ID3D11BlendState* blendState;
 	//ID3D11Buffer*      pVertexBuffer[2] = { NULL, NULL };
 	// BEGIN PART 5
 	// TODO: PART 5 STEP 1
@@ -781,6 +782,7 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	loadThreads.push_back(std::thread(&DEMO_APP::loadOBJ2, this, "Assets/Models/lamp.obj", &objIndex[2], &objVerts[2], &pObjectVertexBuffer[2], &pObjectIndexBuffer[2]));
 	loadThreads.push_back(std::thread(&DEMO_APP::loadOBJ2, this, "Assets/Models/Dodgeball.obj", &objIndex[3], &objVerts[3], &pObjectVertexBuffer[3], &pObjectIndexBuffer[3]));
 	loadThreads.push_back(std::thread(&DEMO_APP::loadOBJ2, this, "Assets/Models/batmobile.obj", &objIndex[4], &objVerts[4], &pObjectVertexBuffer[4], &pObjectIndexBuffer[4]));
+	loadThreads.push_back(std::thread(&DEMO_APP::loadOBJ2, this, "Assets/Models/BlackWarGreymon.obj", &objIndex[5], &objVerts[5], &pObjectVertexBuffer[5], &pObjectIndexBuffer[5]));
 
 	//loadOBJ2("Assets/Models/Tunnel.obj", &objIndex[0], &objVerts[0], &pObjectVertexBuffer[0], &pObjectIndexBuffer[0]);
 	//loadOBJ2("Assets/Models/Dodgeball.obj", &objIndex[1], &objVerts[1], &pObjectVertexBuffer[1], &pObjectIndexBuffer[1]);
@@ -814,7 +816,6 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	zDesc.Texture2D.MipSlice = 0;
 	dev->CreateDepthStencilView(zBuffer, &zDesc, &zStencil);
 #pragma endregion
-
 #pragma region ViewPort
 	ZeroMemory(&viewport, sizeof(D3D11_VIEWPORT));
 
@@ -839,7 +840,6 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 
 
 #pragma endregion
-
 #pragma region vertexBuffer
 	// TODO: PART 2 STEP 3a
 	D3D11_BUFFER_DESC GrBufferDesc2;
@@ -875,7 +875,6 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	dev->CreateBuffer(&iGrBufferDesc2, &iGrInitData2, &pGrassIndexBuffer);
 
 #pragma endregion
-
 #pragma region vertexBuffer
 	// TODO: PART 2 STEP 3a
 	D3D11_BUFFER_DESC bufferDesc2;
@@ -916,8 +915,8 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 
 	dev->CreateVertexShader(Trivial_VS, sizeof(Trivial_VS), NULL, &pVS);
 	dev->CreatePixelShader(Trivial_PS, sizeof(Trivial_PS), NULL, &pPS);
-	dev->CreatePixelShader(SkyBox, sizeof(SkyBox), NULL, &skyBoxShader);
-	dev->CreateVertexShader(SkyBoxVS, sizeof(SkyBoxVS), NULL, &skyBoxVertShader);
+	dev->CreatePixelShader(SkyBox_PS, sizeof(SkyBox_PS), NULL, &skyBoxShader);
+	dev->CreateVertexShader(SkyBox_VS, sizeof(SkyBox_VS), NULL, &skyBoxVertShader);
 	// set the shader objects
 #pragma endregion
 #pragma region inputLayout
@@ -931,6 +930,21 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 
 #pragma endregion
 
+#pragma region BlendState
+	D3D11_BLEND_DESC blendDesc;
+	ZeroMemory(&blendDesc, sizeof(blendDesc));
+	blendDesc.AlphaToCoverageEnable = false;
+	blendDesc.IndependentBlendEnable = false;
+	blendDesc.RenderTarget[0].BlendEnable = true;
+	blendDesc.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
+	blendDesc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
+	blendDesc.RenderTarget[0].DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
+	blendDesc.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_ZERO;
+	blendDesc.RenderTarget[0].SrcBlend = D3D11_BLEND_SRC_ALPHA;
+	blendDesc.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_ONE;
+	blendDesc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
+	dev->CreateBlendState(&blendDesc, &blendState);
+#pragma endregion
 	D3D11_BUFFER_DESC constBufferDesc;
 	ZeroMemory(&constBufferDesc, sizeof(constBufferDesc));
 	constBufferDesc.Usage = D3D11_USAGE_DYNAMIC;
@@ -999,6 +1013,7 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	loadThreads.push_back(std::thread(&DEMO_APP::LoadTextures, this, dev, L"Assets/Textures/bluedodgeball.dds", &objectResource[3]));
 	loadThreads.push_back(std::thread(&DEMO_APP::LoadTextures, this, dev, L"Assets/Textures/grass.dds", &grassResource));
 	loadThreads.push_back(std::thread(&DEMO_APP::LoadTextures, this, dev, L"Assets/Textures/batmobile.dds", &objectResource[4]));
+	loadThreads.push_back(std::thread(&DEMO_APP::LoadTextures, this, dev, L"Assets/Textures/BlackWarGreymon.dds", &objectResource[5]));
 	//LoadTextures(dev, L"Assets/Textures/skybox1.dds", NULL, &skyBoxResource);
 	//CreateDDSTextureFromFile(dev, L"Assets/Textures/skybox1.dds", NULL, &skyBoxResource);
 	//CreateDDSTextureFromFile(dev, L"Assets/Textures/Tunnel.dds", NULL, &objectResource[0]);
@@ -1054,10 +1069,15 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	XMStoreFloat4x4(&objects[9].worldMatrix, batmobileMatrix * XMMatrixTranslation(-137.0f, 0.0f, -50.5f));
 	XMStoreFloat4x4(&objects[10].worldMatrix, batmobileMatrix2 * XMMatrixTranslation(147.0f, 0.0f, 20.5f));
 	XMStoreFloat4x4(&objects[11].worldMatrix, batmobileMatrix2 * XMMatrixTranslation(-169.0f, 0.0f, 50.5f));
+	XMMATRIX backwordsStatue = XMMatrixRotationY(XMConvertToRadians(180)) * XMMatrixScaling(55.0f, 55.0f, 55.0f);
+	XMStoreFloat4x4(&objects[12].worldMatrix, backwordsStatue * XMMatrixTranslation(-135.5f, 0, 105));
+	XMStoreFloat4x4(&objects[13].worldMatrix, backwordsStatue * XMMatrixTranslation(135.5f, 0,  105));
+	XMStoreFloat4x4(&objects[14].worldMatrix, XMMatrixScaling(55.0f, 55.0f, 55.0f) * XMMatrixTranslation(-135.5f, 0, -105));
+	XMStoreFloat4x4(&objects[15].worldMatrix, XMMatrixScaling(55.0f, 55.0f, 55.0f) * XMMatrixTranslation(135.5f, 0, -105));
 	XMStoreFloat4x4(&grass[0].worldMatrix, XMMatrixIdentity());
 	XMStoreFloat4x4(&grass[1].worldMatrix, XMMatrixIdentity());
 	XMMATRIX charMatrix = XMMatrixScaling(0.95f, 0.95f, 0.95f);
-
+	
 	charMatrix = charMatrix * XMMatrixRotationY(XMConvertToRadians(90));
 	XMStoreFloat4x4(&sun.worldMatrix, XMMatrixTranslation(0, 200, 0));
 	XMStoreFloat4x4(&tunnel[0].worldMatrix, charMatrix * XMMatrixTranslation(225.0f, -0.5f, 3.5f));
@@ -1125,12 +1145,12 @@ void DEMO_APP::BallStuff()
 		XMStoreFloat3(&ballDirection, dodgeballDir[0]);
 		ballDirection.y -= 0.981f * (float)pXtime.Delta();
 		dodgeballDir[0] = XMLoadFloat3(&ballDirection);
-		ballMatrix = ballMatrix * (XMMatrixTranslation(ballDirection.x * pXtime.Delta() * 125, ballDirection.y * pXtime.Delta() * 55, ballDirection.z * pXtime.Delta() * 125));
+		ballMatrix = ballMatrix * (XMMatrixTranslation(ballDirection.x * (float)pXtime.Delta() * 125, ballDirection.y * (float)pXtime.Delta() * 55, ballDirection.z * (float)pXtime.Delta() * 125));
 		XMMATRIX rotx, roty, rotz;
 
-		rotx = XMMatrixRotationX(XMConvertToRadians(ballDirection.y * 90 * pXtime.Delta()) * 5);
-		roty = XMMatrixRotationY(XMConvertToRadians(ballDirection.y * 90 * pXtime.Delta()) * 5);
-		rotz = XMMatrixRotationZ(XMConvertToRadians(ballDirection.x * 90 * pXtime.Delta()) * 5);
+		rotx = XMMatrixRotationX(XMConvertToRadians(ballDirection.y * 90 * (float)pXtime.Delta()) * 5);
+		roty = XMMatrixRotationY(XMConvertToRadians(ballDirection.y * 90 * (float)pXtime.Delta()) * 5);
+		rotz = XMMatrixRotationZ(XMConvertToRadians(ballDirection.x * 90 * (float)pXtime.Delta()) * 5);
 		XMFLOAT3 transRot = { 0, 0, 0 };
 		XMMATRIX rotY = ballMatrix;
 		XMVECTOR posR = ballMatrix.r[3];
@@ -1176,14 +1196,14 @@ void DEMO_APP::BallStuff2()
 		float ballHeight = ballMatrix.r[3].m128_f32[1];
 		XMFLOAT3 ballDirection;
 		XMStoreFloat3(&ballDirection, dodgeballDir[1]);
-		ballDirection.y -= 0.981f * pXtime.Delta();
+		ballDirection.y -= 0.981f * (float)pXtime.Delta();
 		dodgeballDir[1] = XMLoadFloat3(&ballDirection);
-		ballMatrix = ballMatrix * (XMMatrixTranslation(ballDirection.x * pXtime.Delta() * 125, ballDirection.y * pXtime.Delta() * 55, ballDirection.z * pXtime.Delta() * 125));
+		ballMatrix = ballMatrix * (XMMatrixTranslation(ballDirection.x * (float)pXtime.Delta() * 125, ballDirection.y * (float)pXtime.Delta() * 55, ballDirection.z * (float)pXtime.Delta() * 125));
 		XMMATRIX rotx, roty, rotz;
 
-		rotx = XMMatrixRotationX(XMConvertToRadians(ballDirection.y * 90 * pXtime.Delta()) * 5);
-		roty = XMMatrixRotationY(XMConvertToRadians(ballDirection.y * 90 * pXtime.Delta()) * 5);
-		rotz = XMMatrixRotationZ(XMConvertToRadians(ballDirection.x * 90 * pXtime.Delta()) * 5);
+		rotx = XMMatrixRotationX(XMConvertToRadians(ballDirection.y * 90 * (float)pXtime.Delta()) * 5);
+		roty = XMMatrixRotationY(XMConvertToRadians(ballDirection.y * 90 * (float)pXtime.Delta()) * 5);
+		rotz = XMMatrixRotationZ(XMConvertToRadians(ballDirection.x * 90 * (float)pXtime.Delta()) * 5);
 		XMFLOAT3 transRot = { 0, 0, 0 };
 		XMMATRIX rotY = ballMatrix;
 		XMVECTOR posR = ballMatrix.r[3];
@@ -1220,7 +1240,7 @@ void DEMO_APP::BallStuff2()
 void DEMO_APP::SunStuff()
 {
 	XMMATRIX sunMatrix = XMLoadFloat4x4(&sun.worldMatrix);
-	sunMatrix = sunMatrix * XMMatrixRotationX(XMConvertToRadians(pXtime.Delta() * 20));
+	sunMatrix = sunMatrix * XMMatrixRotationX(XMConvertToRadians((float)pXtime.Delta() * 20));
 	XMStoreFloat4x4(&sun.worldMatrix, sunMatrix);
 	XMVECTOR sunDir = sunMatrix.r[3];
 	sunDir = XMVector4Normalize(sunDir);
@@ -1261,11 +1281,11 @@ void DEMO_APP::SunStuff()
 void DEMO_APP::CarStuff(VRAM_OBJECT* matrix, bool Inverted, float speed)
 {
 	XMMATRIX localMatrix = XMLoadFloat4x4(&matrix->worldMatrix);
-	int inc = speed;
+	float inc = speed;
 	if (Inverted)
 		inc *= -1;
 
-	float time = pXtime.SmoothDelta();
+	float time = (float)pXtime.SmoothDelta();
 	XMMATRIX transMatrix = XMMatrixTranslation(inc * time, 0, 0);
 	localMatrix = localMatrix * transMatrix;
 	XMVECTOR pos = localMatrix.r[3];
@@ -1537,7 +1557,7 @@ void DEMO_APP::Input()
 	{
 		BOOL fullScreen;
 		swapchain->GetFullscreenState(&fullScreen, NULL);
-		if (fullScreen == true)
+		if (fullScreen == TRUE)
 		{
 			swapchain->SetFullscreenState(false, NULL);
 		}
@@ -1702,7 +1722,7 @@ bool DEMO_APP::Run()
 	CarStuff(&objects[9], false, 570.0f);
 	CarStuff(&objects[10], true, 495.0f);
 	CarStuff(&objects[11], true, 545.0f);
-	boxTimer.elapsedTime.x += pXtime.Delta();
+	boxTimer.elapsedTime.x += (float)pXtime.Delta();
 	//cubeVertices.rotationMatrix = XMMatrixRotationY(XMConvertToRadians(57.3) * pXtime.Delta()) * cubeMatrics.rotationMatrix;
 	Input();
 	float color[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
@@ -1720,6 +1740,7 @@ bool DEMO_APP::Run()
 
 	deffCon->RSSetState(rState);
 	deffCon->OMSetDepthStencilState(NULL, 0);
+	deffCon->OMSetBlendState(blendState, NULL, 0xFFFFFFFF);
 	deffCon->VSSetShader(pVS, NULL, NULL);
 	deffCon->PSSetShader(pPS, NULL, NULL);
 	ID3D11ShaderResourceView* junkShader = NULL;
@@ -1789,10 +1810,11 @@ bool DEMO_APP::Run()
 	DrawObject(objects[9], &pObjectVertexBuffer[4], &pObjectIndexBuffer[4], objIndex[4], &objectResource[4]);
 	DrawObject(objects[10], &pObjectVertexBuffer[4], &pObjectIndexBuffer[4], objIndex[4], &objectResource[4]);
 	DrawObject(objects[11], &pObjectVertexBuffer[4], &pObjectIndexBuffer[4], objIndex[4], &objectResource[4]);
-	//for (auto& thread : drawThreads)
-	//{
-	//	thread.join();
-	//}
+	DrawObject(objects[12], &pObjectVertexBuffer[5], &pObjectIndexBuffer[5], objIndex[5], &objectResource[5]);
+	DrawObject(objects[13], &pObjectVertexBuffer[5], &pObjectIndexBuffer[5], objIndex[5], &objectResource[5]);
+	DrawObject(objects[14], &pObjectVertexBuffer[5], &pObjectIndexBuffer[5], objIndex[5], &objectResource[5]);
+	DrawObject(objects[15], &pObjectVertexBuffer[5], &pObjectIndexBuffer[5], objIndex[5], &objectResource[5]);
+
 #pragma region player2
 	deffCon->RSSetViewports(1, &viewport2);
 	DrawSkyBox(world4);
@@ -1832,6 +1854,10 @@ bool DEMO_APP::Run()
 	DrawObject(objects[9], &pObjectVertexBuffer[4], &pObjectIndexBuffer[4], objIndex[4], &objectResource[4]);
 	DrawObject(objects[10], &pObjectVertexBuffer[4], &pObjectIndexBuffer[4], objIndex[4], &objectResource[4]);
 	DrawObject(objects[11], &pObjectVertexBuffer[4], &pObjectIndexBuffer[4], objIndex[4], &objectResource[4]);
+	DrawObject(objects[12], &pObjectVertexBuffer[5], &pObjectIndexBuffer[5], objIndex[5], &objectResource[5]);
+	DrawObject(objects[13], &pObjectVertexBuffer[5], &pObjectIndexBuffer[5], objIndex[5], &objectResource[5]);
+	DrawObject(objects[14], &pObjectVertexBuffer[5], &pObjectIndexBuffer[5], objIndex[5], &objectResource[5]);
+	DrawObject(objects[15], &pObjectVertexBuffer[5], &pObjectIndexBuffer[5], objIndex[5], &objectResource[5]);
 #pragma endregion
 	deffCon->FinishCommandList(true, &pCList);
 	devcon->ExecuteCommandList(pCList, true);
@@ -1907,6 +1933,7 @@ void DEMO_APP::DrawSkyBox(VRAM_SCENE worldView)
 }
 bool DEMO_APP::ShutDown()
 {
+	blendState->Release();
 	backbuffer->Release();
 	zBuffer->Release();
 	zStencil->Release();
@@ -1928,7 +1955,7 @@ bool DEMO_APP::ShutDown()
 	pPlaneVertexBuffer->Release();
 	pGrassIndexBuffer->Release();
 	pGrassVertexBuffer->Release();
-	for (size_t i = 0; i < 5; i++)
+	for (size_t i = 0; i < 6; i++)
 	{
 		objectResource[i]->Release();
 		pObjectIndexBuffer[i]->Release();
