@@ -31,6 +31,7 @@ using namespace DirectX;
 // TODO: PART 2 STEP 6
 #include "Trivial_PS.csh"
 #include "Trivial_VS.csh"
+#include "Trivial_GS.csh"
 #include "SkyBox_PS.csh"
 #include "SkyBox_VS.csh"
 #include "DDSTextureLoader.h"
@@ -940,7 +941,7 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	blendDesc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
 	blendDesc.RenderTarget[0].DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
 	blendDesc.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_ZERO;
-	blendDesc.RenderTarget[0].SrcBlend = D3D11_BLEND_SRC_ALPHA;
+	blendDesc.RenderTarget[0].SrcBlend = D3D11_BLEND_ONE;
 	blendDesc.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_ONE;
 	blendDesc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
 	dev->CreateBlendState(&blendDesc, &blendState);
@@ -1780,8 +1781,6 @@ bool DEMO_APP::Run()
 	//drawThreads.push_back(std::thread(&DEMO_APP::DrawObject, this, objects[0], &pObjectVertexBuffer[1], &pObjectIndexBuffer[1], objIndex[1], &objectResource[1]));
 	//drawThreads.push_back(std::thread(&DEMO_APP::DrawObject, this, objects[7], &pObjectVertexBuffer[3], &pObjectIndexBuffer[3], objIndex[3], &objectResource[3]));
 
-	DrawObject(objects[0], &pObjectVertexBuffer[1], &pObjectIndexBuffer[1], objIndex[1], &objectResource[1]);
-	DrawObject(objects[7], &pObjectVertexBuffer[3], &pObjectIndexBuffer[3], objIndex[3], &objectResource[3]);
 
 	for (size_t i = 0; i < 6; i++)
 	{
@@ -1815,6 +1814,8 @@ bool DEMO_APP::Run()
 	DrawObject(objects[14], &pObjectVertexBuffer[5], &pObjectIndexBuffer[5], objIndex[5], &objectResource[5]);
 	DrawObject(objects[15], &pObjectVertexBuffer[5], &pObjectIndexBuffer[5], objIndex[5], &objectResource[5]);
 
+	DrawObject(objects[0], &pObjectVertexBuffer[1], &pObjectIndexBuffer[1], objIndex[1], &objectResource[1]);
+	DrawObject(objects[7], &pObjectVertexBuffer[3], &pObjectIndexBuffer[3], objIndex[3], &objectResource[3]);
 #pragma region player2
 	deffCon->RSSetViewports(1, &viewport2);
 	DrawSkyBox(world4);
@@ -1840,8 +1841,6 @@ bool DEMO_APP::Run()
 		DrawObject(tunnel[i], &pObjectVertexBuffer[0], &pObjectIndexBuffer[0], objIndex[0], &objectResource[0]);
 	}
 
-	DrawObject(objects[0], &pObjectVertexBuffer[1], &pObjectIndexBuffer[1], objIndex[1], &objectResource[1]);
-	DrawObject(objects[7], &pObjectVertexBuffer[3], &pObjectIndexBuffer[3], objIndex[3], &objectResource[3]);
 
 	for (size_t i = 0; i < 6; i++)
 	{
@@ -1858,6 +1857,9 @@ bool DEMO_APP::Run()
 	DrawObject(objects[13], &pObjectVertexBuffer[5], &pObjectIndexBuffer[5], objIndex[5], &objectResource[5]);
 	DrawObject(objects[14], &pObjectVertexBuffer[5], &pObjectIndexBuffer[5], objIndex[5], &objectResource[5]);
 	DrawObject(objects[15], &pObjectVertexBuffer[5], &pObjectIndexBuffer[5], objIndex[5], &objectResource[5]);
+
+	DrawObject(objects[0], &pObjectVertexBuffer[1], &pObjectIndexBuffer[1], objIndex[1], &objectResource[1]);
+	DrawObject(objects[7], &pObjectVertexBuffer[3], &pObjectIndexBuffer[3], objIndex[3], &objectResource[3]);
 #pragma endregion
 	deffCon->FinishCommandList(true, &pCList);
 	devcon->ExecuteCommandList(pCList, true);
