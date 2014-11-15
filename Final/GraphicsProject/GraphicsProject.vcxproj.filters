@@ -13,6 +13,21 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
+    <Filter Include="Shaders">
+      <UniqueIdentifier>{ca75f05a-4f9c-478b-bc9c-22cb9f8dd1bc}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Shaders\Grass">
+      <UniqueIdentifier>{6708313e-10c6-44df-aa43-dd74239c201b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Shaders\Plane">
+      <UniqueIdentifier>{6bbd0501-9f03-40ca-bc8f-f9f7b32cc3ec}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Shaders\Trivial">
+      <UniqueIdentifier>{6cc7fe51-7e5e-4f47-b2d6-81f30b8dcb0c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Shaders\Skybox">
+      <UniqueIdentifier>{2c58cc97-5f99-4de9-a097-3561535c3b19}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="XTime.cpp">
@@ -37,9 +52,32 @@
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <FxCompile Include="Trivial_VS.hlsl" />
-    <FxCompile Include="Trivial_PS.hlsl" />
-    <FxCompile Include="SkyBox_PS.hlsl" />
-    <FxCompile Include="SkyBox_VS.hlsl" />
+    <FxCompile Include="Trivial_PS.hlsl">
+      <Filter>Shaders\Trivial</Filter>
+    </FxCompile>
+    <FxCompile Include="Trivial_VS.hlsl">
+      <Filter>Shaders\Trivial</Filter>
+    </FxCompile>
+    <FxCompile Include="SkyBox_PS.hlsl">
+      <Filter>Shaders\Skybox</Filter>
+    </FxCompile>
+    <FxCompile Include="SkyBox_VS.hlsl">
+      <Filter>Shaders\Skybox</Filter>
+    </FxCompile>
+    <FxCompile Include="Plane_VS.hlsl">
+      <Filter>Shaders\Plane</Filter>
+    </FxCompile>
+    <FxCompile Include="Plane_GS.hlsl">
+      <Filter>Shaders\Plane</Filter>
+    </FxCompile>
+    <FxCompile Include="Plane_PS.hlsl">
+      <Filter>Shaders\Plane</Filter>
+    </FxCompile>
+    <FxCompile Include="Grass_PS.hlsl">
+      <Filter>Shaders\Grass</Filter>
+    </FxCompile>
+    <FxCompile Include="Grass_GS.hlsl">
+      <Filter>Shaders\Grass</Filter>
+    </FxCompile>
   </ItemGroup>
 </Project>

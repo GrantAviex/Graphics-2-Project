@@ -31,9 +31,13 @@ using namespace DirectX;
 // TODO: PART 2 STEP 6
 #include "Trivial_PS.csh"
 #include "Trivial_VS.csh"
-#include "Trivial_GS.csh"
 #include "SkyBox_PS.csh"
 #include "SkyBox_VS.csh"
+#include "Plane_VS.csh"
+#include "Plane_GS.csh"
+#include "Plane_PS.csh"
+#include "Grass_GS.csh"
+#include "Grass_PS.csh"
 #include "DDSTextureLoader.h"
 #include <vector>
 #include <fstream>
@@ -55,6 +59,15 @@ struct SIMPLE_VERTEX
 	XMFLOAT3 uvw;
 	XMFLOAT3 nrm;
 };
+struct BILLBOARD_VERTEX
+{
+	XMFLOAT3 pos;
+};
+struct VRAM_GRASS
+{
+	XMFLOAT2 grassSize;
+	XMFLOAT2 padding;
+}; 
 struct VRAM_OBJECT
 {
 	XMFLOAT4X4 worldMatrix;
@@ -90,6 +103,30 @@ struct VRAM_SKYBOX
 {
 	XMFLOAT4 elapsedTime;
 };
+
+struct BILLBOARD
+{
+	ID3D11ShaderResourceView * pShaderResource;
+	BILLBOARD_VERTEX planeVertices[1];
+	BILLBOARD_VERTEX grassVertices[3000];
+	VRAM_OBJECT billboard;
+	VRAM_OBJECT billboard2;
+	VRAM_OBJECT billboardPlane;
+	VRAM_GRASS grass;
+	VRAM_SCENE billboardWorld;
+	ID3D11RenderTargetView *billboardTarget;
+	ID3D11Texture2D * zbillboardBuffer;
+	ID3D11Texture2D *billboardBuffer;
+	ID3D11DepthStencilView *zbillboardStencil;
+	SIMPLE_VERTEX billboardVertices[4];
+	int billboardIndicies[6];
+	ID3D11Buffer *pVertexBuffer;
+	ID3D11Buffer *pGrassBuffer;
+	ID3D11Buffer *ConstGrassBuffer;
+	ID3D11Buffer *pBoardVertexBuffer;
+	ID3D11Buffer *pBoardIndexBuffer;
+};
+
 class DEMO_APP
 {
 	HINSTANCE						application;
@@ -132,6 +169,11 @@ class DEMO_APP
 	ID3D11ShaderResourceView * grassResource;
 	ID3D11VertexShader *pVS;
 	ID3D11PixelShader *pPS;
+	ID3D11VertexShader *planeVS;
+	ID3D11PixelShader *planePS;
+	ID3D11GeometryShader *planeGS;
+	ID3D11PixelShader *grassPS;
+	ID3D11GeometryShader *grassGS;
 	ID3D11SamplerState * pSampler;
 	ID3D11CommandList* pCList;
 	ID3D11BlendState* blendState;
@@ -186,6 +228,7 @@ class DEMO_APP
 public:
 	// BEGIN PART 2
 	// TODO: PART 2 STEP 1
+	BILLBOARD billboard;
 	XMVECTOR dodgeballDir[2];
 	float JumpTimer = 0.0f;
 	bool mouseAnchored = false;
@@ -213,6 +256,8 @@ public:
 		ID3D11Buffer** meshVertBuff, ID3D11Buffer** meshIndexBuff);
 	void DrawSkyBox(VRAM_SCENE worldView);
 	void DrawObject(VRAM_OBJECT objectMatrix, ID3D11Buffer **objectVertexBuffer, ID3D11Buffer **objectIndexBuffer, std::vector<int> Index, ID3D11ShaderResourceView** shaderResourceView = NULL);
+	void DrawBillboardStuff();
+	void DrawBillboards();
 	bool ShutDown();
 	void GravityStuff();
 	void BallStuff();
@@ -653,6 +698,39 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	ShowWindow(window, SW_SHOW);
 	//********************* END WARNING ************************//
 	std::vector<std::thread> loadThreads;
+#pragma region billboard
+	billboard.planeVertices[0].pos = { 0.0f, 0.0f, 0.0f };
+
+	XMFLOAT2 temp;
+	for (size_t i = 0; i < 3000; i++)
+	{
+		temp.x = -1 + static_cast <float> (rand()) / (static_cast <float> (RAND_MAX / (1 - -1)));
+		temp.y = -1 + static_cast <float> (rand()) / (static_cast <float> (RAND_MAX / (1 - -1)));
+		billboard.grassVertices[i].pos = { temp.x * 2.5f, 0.0f, temp.y * 2.5f };
+	}
+	billboard.grass.grassSize = { 0.025f, 0.025f };
+
+	billboard.billboardVertices[0].pos = { -75.0f, 75.0f,  0.0f };
+	billboard.billboardVertices[1].pos = {  75.0f, 75.0f,  0.0f };
+	billboard.billboardVertices[2].pos = { -75.0f, -10.0f, 0.0f };
+	billboard.billboardVertices[3].pos = {  75.0f, -10.0f, 0.0f };
+	billboard.billboardVertices[0].uvw = { 0.0f, 0.0f, 0.0f };
+	billboard.billboardVertices[1].uvw = { 1.0f, 0.0f, 0.0f };
+	billboard.billboardVertices[2].uvw = { 0.0f, 1.0f, 0.0f };
+	billboard.billboardVertices[3].uvw = { 1.0f, 1.0f, 0.0f };
+	billboard.billboardVertices[0].nrm = { 0.0f, 0.0f, 1.0f };
+	billboard.billboardVertices[1].nrm = { 0.0f, 0.0f, 1.0f };
+	billboard.billboardVertices[2].nrm = { 0.0f, 0.0f, 1.0f };
+	billboard.billboardVertices[3].nrm = { 0.0f, 0.0f, 1.0f };
+
+
+	billboard.billboardIndicies[0] = 0;
+	billboard.billboardIndicies[1] = 1;
+	billboard.billboardIndicies[2] = 2;
+	billboard.billboardIndicies[3] = 2;
+	billboard.billboardIndicies[4] = 1;
+	billboard.billboardIndicies[5] = 3;
+#pragma endregion
 #pragma region plane
 	planeVertices[0].pos = { -225.0f, 0.0f, 75.0f };
 	planeVertices[1].pos = { 225.0f, 0.0f, 75.0f };
@@ -841,6 +919,55 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 
 
 #pragma endregion
+
+#pragma region cubeBuffer
+	D3D11_TEXTURE2D_DESC cubeBuffDesc;
+
+	ZeroMemory(&cubeBuffDesc, sizeof(cubeBuffDesc));
+	cubeBuffDesc.Width = 400;
+	cubeBuffDesc.Height = 400;
+	cubeBuffDesc.ArraySize = 1;
+	cubeBuffDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
+	cubeBuffDesc.SampleDesc.Count = 1;
+	cubeBuffDesc.SampleDesc.Quality = 0;
+	cubeBuffDesc.Usage = D3D11_USAGE_DEFAULT;
+	cubeBuffDesc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
+	cubeBuffDesc.CPUAccessFlags = 0;
+	cubeBuffDesc.MiscFlags = D3D11_RESOURCE_MISC_GENERATE_MIPS;
+	
+	dev->CreateTexture2D(&cubeBuffDesc, NULL, &billboard.billboardBuffer);
+
+
+	dev->CreateRenderTargetView(billboard.billboardBuffer, NULL, &billboard.billboardTarget);
+#pragma endregion
+#pragma region zCubeBuffer
+	D3D11_TEXTURE2D_DESC zCubeBuffDesc;
+
+	ZeroMemory(&zCubeBuffDesc, sizeof(zCubeBuffDesc));
+	zCubeBuffDesc.Width = 400;
+	zCubeBuffDesc.Height = 400;
+	zCubeBuffDesc.MipLevels = 1;
+	zCubeBuffDesc.ArraySize = 1;
+	zCubeBuffDesc.Format = DXGI_FORMAT_D32_FLOAT;
+	zCubeBuffDesc.SampleDesc.Count = 1;
+	zCubeBuffDesc.SampleDesc.Quality = 0;
+	zCubeBuffDesc.Usage = D3D11_USAGE_DEFAULT;
+	zCubeBuffDesc.BindFlags = D3D11_BIND_DEPTH_STENCIL;
+	zCubeBuffDesc.CPUAccessFlags = 0;
+	zCubeBuffDesc.MiscFlags = 0;
+
+	dev->CreateTexture2D(&zCubeBuffDesc, NULL, &billboard.zbillboardBuffer);
+#pragma 
+#pragma region zCubeStencil
+	D3D11_DEPTH_STENCIL_VIEW_DESC zCubeDesc;
+
+	ZeroMemory(&zCubeDesc, sizeof(zCubeDesc));
+
+	zCubeDesc.Format = DXGI_FORMAT_D32_FLOAT;
+	zCubeDesc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
+	zCubeDesc.Texture2D.MipSlice = 0;
+	dev->CreateDepthStencilView(billboard.zbillboardBuffer, &zCubeDesc, &billboard.zbillboardStencil);
+#pragma endregion
 #pragma region vertexBuffer
 	// TODO: PART 2 STEP 3a
 	D3D11_BUFFER_DESC GrBufferDesc2;
@@ -911,6 +1038,75 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	dev->CreateBuffer(&iBufferDesc2, &iInitData2, &pPlaneIndexBuffer);
 
 #pragma endregion
+#pragma region vertexBuffer
+	// TODO: PART 2 STEP 3a
+	bufferDesc2 = {};
+	ZeroMemory(&bufferDesc2, sizeof(bufferDesc2));
+	bufferDesc2.Usage = D3D11_USAGE_IMMUTABLE;
+	bufferDesc2.ByteWidth = sizeof(billboard.billboardVertices);
+	bufferDesc2.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+	bufferDesc2.CPUAccessFlags = NULL;
+
+	InitData2 = {};
+	InitData2.pSysMem = billboard.billboardVertices;
+	InitData2.SysMemPitch = 0;
+	InitData2.SysMemSlicePitch = 0;
+
+	dev->CreateBuffer(&bufferDesc2, &InitData2, &billboard.pBoardVertexBuffer);
+
+#pragma endregion
+#pragma region indexBuffer
+	// TODO: PART 2 STEP 3a
+	iBufferDesc2 = {};
+	ZeroMemory(&iBufferDesc2, sizeof(iBufferDesc2));
+
+	iBufferDesc2.Usage = D3D11_USAGE_DYNAMIC;
+	iBufferDesc2.ByteWidth = sizeof(billboard.billboardIndicies);
+	iBufferDesc2.BindFlags = D3D11_BIND_INDEX_BUFFER;
+	iBufferDesc2.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+
+	iInitData2 = {};
+	iInitData2.pSysMem = billboard.billboardIndicies;
+	iInitData2.SysMemPitch = 0;
+	iInitData2.SysMemSlicePitch = 0;
+
+	dev->CreateBuffer(&iBufferDesc2, &iInitData2, &billboard.pBoardIndexBuffer);
+
+#pragma endregion
+#pragma region vertexBuffer
+	// TODO: PART 2 STEP 3a
+	D3D11_BUFFER_DESC bufferDesc;
+	ZeroMemory(&bufferDesc, sizeof(bufferDesc));
+	bufferDesc.Usage = D3D11_USAGE_IMMUTABLE;
+	bufferDesc.ByteWidth = sizeof(BILLBOARD_VERTEX);
+	bufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+	bufferDesc.CPUAccessFlags = NULL;
+
+	D3D11_SUBRESOURCE_DATA InitData;
+	InitData.pSysMem = billboard.planeVertices;
+	InitData.SysMemPitch = 0;
+	InitData.SysMemSlicePitch = 0;
+
+	dev->CreateBuffer(&bufferDesc, &InitData, &billboard.pVertexBuffer);
+
+#pragma endregion
+#pragma region grassBuffer
+	// TODO: PART 2 STEP 3a
+	D3D11_BUFFER_DESC grassBufferDesc;
+	ZeroMemory(&grassBufferDesc, sizeof(grassBufferDesc));
+	grassBufferDesc.Usage = D3D11_USAGE_IMMUTABLE;
+	grassBufferDesc.ByteWidth = sizeof(BILLBOARD_VERTEX) * 3000;
+	grassBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+	grassBufferDesc.CPUAccessFlags = NULL;
+
+	D3D11_SUBRESOURCE_DATA InitDataG;
+	InitDataG.pSysMem = billboard.grassVertices;
+	InitDataG.SysMemPitch = 0;
+	InitDataG.SysMemSlicePitch = 0;
+
+	dev->CreateBuffer(&grassBufferDesc, &InitDataG, &billboard.pGrassBuffer);
+
+#pragma endregion
 
 #pragma region ShaderStuff
 
@@ -918,6 +1114,11 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	dev->CreatePixelShader(Trivial_PS, sizeof(Trivial_PS), NULL, &pPS);
 	dev->CreatePixelShader(SkyBox_PS, sizeof(SkyBox_PS), NULL, &skyBoxShader);
 	dev->CreateVertexShader(SkyBox_VS, sizeof(SkyBox_VS), NULL, &skyBoxVertShader);
+	dev->CreateVertexShader(Plane_VS, sizeof(Plane_VS), NULL, &planeVS);
+	dev->CreatePixelShader(Plane_PS, sizeof(Plane_PS), NULL, &planePS);
+	dev->CreateGeometryShader(Plane_GS, sizeof(Plane_GS), NULL, &planeGS);
+	dev->CreateGeometryShader(Grass_GS, sizeof(Grass_GS), NULL, &grassGS);
+	dev->CreatePixelShader(Grass_PS, sizeof(Grass_PS), NULL, &grassPS);
 	// set the shader objects
 #pragma endregion
 #pragma region inputLayout
@@ -928,6 +1129,11 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 		{ "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 }
 	};
 	dev->CreateInputLayout(vLayout, _countof(vLayout), Trivial_VS, sizeof(Trivial_VS), &pLayout);
+	D3D11_INPUT_ELEMENT_DESC vLayout2[] =
+	{
+		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 }
+	};
+	dev->CreateInputLayout(vLayout2, _countof(vLayout2), Plane_VS, sizeof(Plane_VS), &pLayout2);
 
 #pragma endregion
 
@@ -961,6 +1167,14 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	sceneBufferDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
 	sceneBufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
 	dev->CreateBuffer(&sceneBufferDesc, NULL, &SceneBuffer);
+
+	D3D11_BUFFER_DESC constGrassBufferDesc;
+	ZeroMemory(&constGrassBufferDesc, sizeof(constGrassBufferDesc));
+	constGrassBufferDesc.Usage = D3D11_USAGE_DYNAMIC;
+	constGrassBufferDesc.ByteWidth = sizeof(VRAM_GRASS);
+	constGrassBufferDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+	constGrassBufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+	dev->CreateBuffer(&constGrassBufferDesc, NULL, &billboard.ConstGrassBuffer);
 
 	D3D11_BUFFER_DESC skyboxBufferDesc;
 	ZeroMemory(&skyboxBufferDesc, sizeof(skyboxBufferDesc));
@@ -1005,7 +1219,7 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	shaderDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
 	shaderDesc.Texture2D = { 0, 1 };
 	//threads.push_back(std::thread(&DEMO_APP::loadOBJ2, this, "Assets/Models/Tunnel.obj", &objIndex[0], &objVerts[0], &pObjectVertexBuffer[0], &pObjectIndexBuffer[0]));
-
+	dev->CreateShaderResourceView(billboard.billboardBuffer, &shaderDesc, &billboard.pShaderResource);
 	loadThreads.push_back(std::thread(&DEMO_APP::LoadTextures, this, dev, L"Assets/Textures/skybox1.dds", &skyBoxResource));
 	loadThreads.push_back(std::thread(&DEMO_APP::LoadTextures, this, dev, L"Assets/Textures/Tunnel.dds", &objectResource[0]));
 	loadThreads.push_back(std::thread(&DEMO_APP::LoadTextures, this, dev, L"Assets/Textures/highway.dds", &planeResource));
@@ -1083,11 +1297,27 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	XMStoreFloat4x4(&sun.worldMatrix, XMMatrixTranslation(0, 200, 0));
 	XMStoreFloat4x4(&tunnel[0].worldMatrix, charMatrix * XMMatrixTranslation(225.0f, -0.5f, 3.5f));
 	XMStoreFloat4x4(&tunnel[1].worldMatrix, charMatrix * XMMatrixTranslation(-225.0f, -0.5f, 3.5f));
+	XMFLOAT3 pos, look, up;
+	pos = { 0, 1.5, -5 };
+	look = { 0, 0, 1 };
+	up = { 0, 1, 0 };
+
+	
+	XMStoreFloat4x4(&billboard.billboardWorld.viewMatrix, XMMatrixLookAtLH(XMLoadFloat3(&pos), XMLoadFloat3(&look), XMLoadFloat3(&up)));
 	//XMStoreFloat4x4(&sphere.worldMatrix, charMatrix);
+	XMStoreFloat4x4(&billboard.billboardPlane.worldMatrix, XMMatrixTranslation(0, -1.9f, 1.0f));
+	
+	XMMATRIX billboardMatrix1 = XMMatrixRotationY(XMConvertToRadians(90));
+	XMMATRIX billboardMatrix2 = XMMatrixRotationY(XMConvertToRadians(-90));
+	XMStoreFloat4x4(&billboard.billboard.worldMatrix, billboardMatrix1 * XMMatrixTranslation(225.0f, 50.0f, 3.5f));
+	XMStoreFloat4x4(&billboard.billboard2.worldMatrix, billboardMatrix2 * XMMatrixTranslation(-225.0f, 50.0f, 3.5f));
 	XMStoreFloat4x4(&world2.projectionMatrix, XMMatrixPerspectiveFovLH(XMConvertToRadians(60), BACKBUFFER_WIDTH / (BACKBUFFER_HEIGHT / 2), 1.0f, 1000));
 	XMStoreFloat4x4(&world.projectionMatrix, XMMatrixPerspectiveFovLH(XMConvertToRadians(60), BACKBUFFER_WIDTH / (BACKBUFFER_HEIGHT / 2), 1.0f, 1000));
 	XMStoreFloat4x4(&world3.projectionMatrix, XMMatrixPerspectiveFovLH(XMConvertToRadians(60), BACKBUFFER_WIDTH / (BACKBUFFER_HEIGHT / 2), 1.0f, 1000));
 	XMStoreFloat4x4(&world4.projectionMatrix, XMMatrixPerspectiveFovLH(XMConvertToRadians(60), BACKBUFFER_WIDTH / (BACKBUFFER_HEIGHT / 2), 1.0f, 1000));
+	XMStoreFloat4x4(&billboard.billboardWorld.projectionMatrix, XMMatrixPerspectiveFovLH(XMConvertToRadians(60), 1, 0.1f, 100));
+
+	
 	CreateSphere(100, 100, &skyBoxIndicies, &skyBoxVerts, &pobjBuffer, &pobjIndexBuffer);
 	//CreateSphere(100, 100,&objIndex[0],&objVerts[0],&pSphereVertexBuffer, &pSphereIndexBuffer);
 	for (auto& thread : loadThreads)
@@ -1710,8 +1940,107 @@ void DEMO_APP::Input()
 			XMStoreFloat4x4(&world3.viewMatrix, worldWatever3);
 	}
 #pragma endregion
+	if (GetAsyncKeyState(VK_UP))
+	{
+		if (billboard.grass.grassSize.y < 1.0f)
+			billboard.grass.grassSize.y += 0.25f * (float)pXtime.Delta();
+	}
+	else if (GetAsyncKeyState(VK_DOWN))
+	{
+		if (billboard.grass.grassSize.y >= 0.0f)
+			billboard.grass.grassSize.y -= 0.25f * (float)pXtime.Delta();
+	}
+	if (GetAsyncKeyState(VK_LEFT))
+	{
+		if (billboard.grass.grassSize.x >= 0.0f)
+			billboard.grass.grassSize.x -= 0.05f * (float)pXtime.Delta();
+	}
+	else if (GetAsyncKeyState(VK_RIGHT))
+	{
+		if (billboard.grass.grassSize.x < 0.05f)
+			billboard.grass.grassSize.x += 0.05f * (float)pXtime.Delta();
+	}
+
+}
+void DEMO_APP::DrawBillboardStuff()
+{
+	UINT strides = sizeof(BILLBOARD_VERTEX);
+	UINT offset = 0;
+	D3D11_VIEWPORT viewportT;
+	ZeroMemory(&viewportT, sizeof(D3D11_VIEWPORT));
+
+	viewportT.TopLeftX = 0;
+	viewportT.TopLeftY = 0;
+	viewportT.Width = 400;
+	viewportT.Height = 400;
+	viewportT.MinDepth = 0;
+	viewportT.MaxDepth = 1;
+	deffCon->RSSetViewports(1, &viewportT);
+
+	float color[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
+	deffCon->OMSetRenderTargets(1, &billboard.billboardTarget, billboard.zbillboardStencil);
+	deffCon->ClearRenderTargetView(billboard.billboardTarget, color);
+	deffCon->ClearDepthStencilView(billboard.zbillboardStencil, D3D11_CLEAR_DEPTH, 1, 0);
+	deffCon->IASetInputLayout(pLayout2);
+	deffCon->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_POINTLIST);
+	deffCon->PSSetShader(planePS, NULL, NULL);
+	deffCon->VSSetShader(planeVS, NULL, NULL);
+	deffCon->GSSetShader(planeGS, NULL, NULL);
+	deffCon->PSSetSamplers(0, 1, &pSampler);
+	D3D11_MAPPED_SUBRESOURCE resource2;
+	memset(&resource2, 0, sizeof(D3D11_MAPPED_SUBRESOURCE));
+	deffCon->Map(SceneBuffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &resource2);
+	memcpy_s(resource2.pData, sizeof(billboard.billboardWorld), &billboard.billboardWorld, sizeof(billboard.billboardWorld));
+	deffCon->Unmap(SceneBuffer, NULL);
+	D3D11_MAPPED_SUBRESOURCE resource4;
+	memset(&resource4, 0, sizeof(D3D11_MAPPED_SUBRESOURCE));
+	deffCon->Map(ConstBuffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &resource4);
+	memcpy_s(resource4.pData, sizeof(billboard.billboardPlane), &billboard.billboardPlane, sizeof(billboard.billboardPlane));
+	deffCon->Unmap(ConstBuffer, NULL);
+	deffCon->GSSetConstantBuffers(0, 1, &ConstBuffer);
+	deffCon->GSSetConstantBuffers(1, 1, &SceneBuffer);
+	deffCon->IASetVertexBuffers(0, 1, &billboard.pVertexBuffer, &strides, &offset);
+	deffCon->Draw(1, 0);
+	D3D11_MAPPED_SUBRESOURCE resource7;
+	memset(&resource7, 0, sizeof(D3D11_MAPPED_SUBRESOURCE));
+	deffCon->Map(billboard.ConstGrassBuffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &resource7);
+	memcpy_s(resource7.pData, sizeof(billboard.grass), &billboard.grass, sizeof(billboard.grass));
+	deffCon->Unmap(billboard.ConstGrassBuffer, NULL);
+
+	deffCon->GSSetConstantBuffers(0, 1, &ConstBuffer);
+	deffCon->GSSetConstantBuffers(1, 1, &SceneBuffer);
+	deffCon->GSSetConstantBuffers(2, 1, &billboard.ConstGrassBuffer);
+	deffCon->GSSetShader(grassGS, NULL, NULL);
+	deffCon->PSSetShader(grassPS, NULL, NULL);
+	deffCon->IASetVertexBuffers(0, 1, &billboard.pGrassBuffer, &strides, &offset);
+	deffCon->Draw(3000, 0);
 
 
+}
+void DEMO_APP::DrawBillboards()
+{
+	UINT strides = sizeof(SIMPLE_VERTEX);
+	UINT offset = 0;
+	deffCon->PSSetShaderResources(0, 1, &billboard.pShaderResource);
+	deffCon->IASetVertexBuffers(0, 1, &billboard.pBoardVertexBuffer, &strides, &offset);
+	deffCon->IASetIndexBuffer(billboard.pBoardIndexBuffer, DXGI_FORMAT_R32_UINT, 0);
+
+	D3D11_MAPPED_SUBRESOURCE resourceobj;
+	memset(&resourceobj, 0, sizeof(D3D11_MAPPED_SUBRESOURCE));
+	deffCon->Map(ConstBuffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &resourceobj);
+	memcpy_s(resourceobj.pData, sizeof(billboard.billboard), &billboard.billboard, sizeof(billboard.billboard));
+	deffCon->Unmap(ConstBuffer, NULL);
+
+
+	deffCon->DrawIndexed(6, 0, 0);
+
+	memset(&resourceobj, 0, sizeof(D3D11_MAPPED_SUBRESOURCE));
+	deffCon->Map(ConstBuffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &resourceobj);
+	memcpy_s(resourceobj.pData, sizeof(billboard.billboard2), &billboard.billboard2, sizeof(billboard.billboard2));
+	deffCon->Unmap(ConstBuffer, NULL);
+
+
+	deffCon->DrawIndexed(6, 0, 0);
 }
 bool DEMO_APP::Run()
 {
@@ -1726,24 +2055,25 @@ bool DEMO_APP::Run()
 	boxTimer.elapsedTime.x += (float)pXtime.Delta();
 	//cubeVertices.rotationMatrix = XMMatrixRotationY(XMConvertToRadians(57.3) * pXtime.Delta()) * cubeMatrics.rotationMatrix;
 	Input();
+	DrawBillboardStuff();
+	///////////////////////////////////////////////////////////////////////
 	float color[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
+	deffCon->OMSetRenderTargets(1, &backbuffer, zStencil);
 	deffCon->ClearRenderTargetView(backbuffer, color);
 	deffCon->ClearDepthStencilView(zStencil, D3D11_CLEAR_DEPTH, 1, 0);
 
-	///////////////////////////////////////////////////////////////////////
-
 	deffCon->IASetInputLayout(pLayout);
-	deffCon->OMSetRenderTargets(1, &backbuffer, zStencil);
 	deffCon->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 	deffCon->PSSetSamplers(0, 1, &pSampler);
 	deffCon->RSSetViewports(1, &viewport);
 	DrawSkyBox(world2);
-
+	
 	deffCon->RSSetState(rState);
 	deffCon->OMSetDepthStencilState(NULL, 0);
 	deffCon->OMSetBlendState(blendState, NULL, 0xFFFFFFFF);
 	deffCon->VSSetShader(pVS, NULL, NULL);
 	deffCon->PSSetShader(pPS, NULL, NULL);
+	deffCon->GSSetShader(NULL, NULL, NULL);
 	ID3D11ShaderResourceView* junkShader = NULL;
 	deffCon->VSSetConstantBuffers(0, 1, &ConstBuffer);
 	deffCon->VSSetConstantBuffers(1, 1, &SceneBuffer);
@@ -1751,44 +2081,46 @@ bool DEMO_APP::Run()
 	deffCon->PSSetConstantBuffers(1, 1, &ConstDirectionalLightBuffer);
 	deffCon->PSSetConstantBuffers(2, 1, &ConstPointLightBuffer);
 	deffCon->PSSetConstantBuffers(3, 1, &ConstSpotLightBuffer);
-
+	
 	//DrawSkyBox(world);
 	D3D11_MAPPED_SUBRESOURCE resourceWorld;
 	memset(&resourceWorld, 0, sizeof(D3D11_MAPPED_SUBRESOURCE));
 	deffCon->Map(SceneBuffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &resourceWorld);
 	memcpy_s(resourceWorld.pData, sizeof(world), &world, sizeof(world));
 	deffCon->Unmap(SceneBuffer, NULL);
-
+	
 	D3D11_MAPPED_SUBRESOURCE resourcepointLight;
 	memset(&resourcepointLight, 0, sizeof(D3D11_MAPPED_SUBRESOURCE));
 	deffCon->Map(ConstPointLightBuffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &resourcepointLight);
 	memcpy_s(resourcepointLight.pData, sizeof(pointLight), &pointLight, sizeof(pointLight));
 	deffCon->Unmap(ConstPointLightBuffer, NULL);
-
+	
 	D3D11_MAPPED_SUBRESOURCE resourcespotLight;
 	memset(&resourcespotLight, 0, sizeof(D3D11_MAPPED_SUBRESOURCE));
 	deffCon->Map(ConstSpotLightBuffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &resourcespotLight);
 	memcpy_s(resourcespotLight.pData, sizeof(spotLight), &spotLight, sizeof(spotLight));
 	deffCon->Unmap(ConstSpotLightBuffer, NULL);
+	
+	DrawBillboards();
 
 	for (size_t i = 0; i < 2; i++)
 	{
 		//drawThreads.push_back(std::thread(&DEMO_APP::DrawObject, this, tunnel[i], &pObjectVertexBuffer[0], &pObjectIndexBuffer[0], objIndex[0], &objectResource[0]));
-
+	
 		DrawObject(tunnel[i], &pObjectVertexBuffer[0], &pObjectIndexBuffer[0], objIndex[0], &objectResource[0]);
 	}
-
+	
 	//drawThreads.push_back(std::thread(&DEMO_APP::DrawObject, this, objects[0], &pObjectVertexBuffer[1], &pObjectIndexBuffer[1], objIndex[1], &objectResource[1]));
 	//drawThreads.push_back(std::thread(&DEMO_APP::DrawObject, this, objects[7], &pObjectVertexBuffer[3], &pObjectIndexBuffer[3], objIndex[3], &objectResource[3]));
-
-
+	
+	
 	for (size_t i = 0; i < 6; i++)
 	{
 		//drawThreads.push_back(std::thread(&DEMO_APP::DrawObject, this, objects[i + 1], &pObjectVertexBuffer[2], &pObjectIndexBuffer[2], objIndex[2], &objectResource[2]));
-
+	
 		DrawObject(objects[i + 1], &pObjectVertexBuffer[2], &pObjectIndexBuffer[2], objIndex[2], &objectResource[2]);
 	}
-
+	
 	std::vector<int> planeInd;
 	std::vector<int> grassInd;
 	for (size_t i = 0; i < 6; i++)
@@ -1796,10 +2128,10 @@ bool DEMO_APP::Run()
 		planeInd.push_back(planeIndicies[i]);
 		grassInd.push_back(grassIndicies[i]);
 	}
-
+	
 	for (size_t i = 6; i < 12; i++)
 		grassInd.push_back(grassIndicies[i]);
-
+	
 	//drawThreads.push_back(std::thread(&DEMO_APP::DrawObject, this, grass[0], &pGrassVertexBuffer, &pGrassIndexBuffer, grassInd, &grassResource));
 	//
 	//drawThreads.push_back(std::thread(&DEMO_APP::DrawObject, this, plane, &pPlaneVertexBuffer, &pPlaneIndexBuffer, planeInd, &planeResource));
@@ -1813,7 +2145,7 @@ bool DEMO_APP::Run()
 	DrawObject(objects[13], &pObjectVertexBuffer[5], &pObjectIndexBuffer[5], objIndex[5], &objectResource[5]);
 	DrawObject(objects[14], &pObjectVertexBuffer[5], &pObjectIndexBuffer[5], objIndex[5], &objectResource[5]);
 	DrawObject(objects[15], &pObjectVertexBuffer[5], &pObjectIndexBuffer[5], objIndex[5], &objectResource[5]);
-
+	
 	DrawObject(objects[0], &pObjectVertexBuffer[1], &pObjectIndexBuffer[1], objIndex[1], &objectResource[1]);
 	DrawObject(objects[7], &pObjectVertexBuffer[3], &pObjectIndexBuffer[3], objIndex[3], &objectResource[3]);
 #pragma region player2
@@ -1829,24 +2161,26 @@ bool DEMO_APP::Run()
 	deffCon->PSSetConstantBuffers(1, 1, &ConstDirectionalLightBuffer);
 	deffCon->PSSetConstantBuffers(2, 1, &ConstPointLightBuffer);
 	deffCon->PSSetConstantBuffers(3, 1, &ConstSpotLightBuffer);
-
+	
 	resourceWorld = {};
 	memset(&resourceWorld, 0, sizeof(D3D11_MAPPED_SUBRESOURCE));
 	deffCon->Map(SceneBuffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &resourceWorld);
 	memcpy_s(resourceWorld.pData, sizeof(world3), &world3, sizeof(world3));
 	deffCon->Unmap(SceneBuffer, NULL);
 
+	DrawBillboards();
+
 	for (size_t i = 0; i < 2; i++)
 	{
 		DrawObject(tunnel[i], &pObjectVertexBuffer[0], &pObjectIndexBuffer[0], objIndex[0], &objectResource[0]);
 	}
-
-
+	
+	
 	for (size_t i = 0; i < 6; i++)
 	{
 		DrawObject(objects[i + 1], &pObjectVertexBuffer[2], &pObjectIndexBuffer[2], objIndex[2], &objectResource[2]);
 	}
-
+	
 	DrawObject(grass[0], &pGrassVertexBuffer, &pGrassIndexBuffer, grassInd, &grassResource);
 	DrawObject(plane, &pPlaneVertexBuffer, &pPlaneIndexBuffer, planeInd, &planeResource);
 	DrawObject(objects[8], &pObjectVertexBuffer[4], &pObjectIndexBuffer[4], objIndex[4], &objectResource[4]);
@@ -1857,10 +2191,11 @@ bool DEMO_APP::Run()
 	DrawObject(objects[13], &pObjectVertexBuffer[5], &pObjectIndexBuffer[5], objIndex[5], &objectResource[5]);
 	DrawObject(objects[14], &pObjectVertexBuffer[5], &pObjectIndexBuffer[5], objIndex[5], &objectResource[5]);
 	DrawObject(objects[15], &pObjectVertexBuffer[5], &pObjectIndexBuffer[5], objIndex[5], &objectResource[5]);
-
+	
 	DrawObject(objects[0], &pObjectVertexBuffer[1], &pObjectIndexBuffer[1], objIndex[1], &objectResource[1]);
 	DrawObject(objects[7], &pObjectVertexBuffer[3], &pObjectIndexBuffer[3], objIndex[3], &objectResource[3]);
 #pragma endregion
+	deffCon->GenerateMips(billboard.pShaderResource);
 	deffCon->FinishCommandList(true, &pCList);
 	devcon->ExecuteCommandList(pCList, true);
 
@@ -1897,6 +2232,7 @@ void DEMO_APP::DrawSkyBox(VRAM_SCENE worldView)
 	UINT offset = 0;
 	deffCon->VSSetShader(skyBoxVertShader, NULL, NULL);
 	deffCon->PSSetShader(skyBoxShader, NULL, NULL);
+	deffCon->GSSetShader(NULL, NULL, NULL);
 	deffCon->PSSetShaderResources(0, 1, &skyBoxResource);
 	deffCon->VSSetConstantBuffers(0, 1, &ConstBuffer);
 	deffCon->VSSetConstantBuffers(1, 1, &SceneBuffer);
@@ -1935,11 +2271,27 @@ void DEMO_APP::DrawSkyBox(VRAM_SCENE worldView)
 }
 bool DEMO_APP::ShutDown()
 {
+	planeGS->Release();
+	planeVS->Release();
+	planePS->Release();
+	grassGS->Release();
+	grassPS->Release();
+	billboard.pShaderResource->Release();
+	billboard.billboardBuffer->Release();
+	billboard.billboardTarget->Release();
+	billboard.pGrassBuffer->Release();
+	billboard.ConstGrassBuffer->Release();
+	billboard.pVertexBuffer->Release();
+	billboard.zbillboardBuffer->Release();
+	billboard.zbillboardStencil->Release();
+	billboard.pBoardVertexBuffer->Release();
+	billboard.pBoardIndexBuffer->Release();
 	blendState->Release();
 	backbuffer->Release();
 	zBuffer->Release();
 	zStencil->Release();
 	pLayout->Release();
+	pLayout2->Release();
 	pVS->Release();
 	pPS->Release();
 	rState->Release();
