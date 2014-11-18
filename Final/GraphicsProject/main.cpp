@@ -156,6 +156,8 @@ class DEMO_APP
 	ID3D11InputLayout *pLayout2;
 	ID3D11Buffer *pobjBuffer;
 	ID3D11Buffer *pobjIndexBuffer;
+	ID3D11Buffer *mossVBuffer;
+	ID3D11Buffer *mossIBuffer;
 	ID3D11Buffer *pSphereVertexBuffer;
 	ID3D11Buffer *pSphereIndexBuffer;
 	ID3D11Buffer *pPlaneVertexBuffer;
@@ -210,6 +212,7 @@ class DEMO_APP
 	ID3D11ShaderResourceView * skyBoxResource;
 	ID3D11RasterizerState * rState;
 	ID3D11RasterizerState * rState2;
+	ID3D11ShaderResourceView * mossResource;
 
 	VRAM_OBJECT sun;
 	VRAM_OBJECT plane;
@@ -239,6 +242,9 @@ public:
 	bool Bounce2 = false;
 	bool Throw2 = false;
 	float sunRot = 0;
+	float carSpeed = 1.0f;
+	float sunSpeed = 20.0f;
+	float gravity = -9.81f;
 	int vertCount;
 	int IndCount;
 	int sphereIndCount;
@@ -248,6 +254,8 @@ public:
 	std::vector<int> objIndex[50];
 	SIMPLE_VERTEX planeVertices[4];
 	int planeIndicies[6];
+	SIMPLE_VERTEX mossVertices[4];
+	int mossIndicies[6];
 	SIMPLE_VERTEX grassVertices[8];
 	int grassIndicies[12];
 	DEMO_APP(HINSTANCE hinst, WNDPROC proc);
@@ -258,6 +266,7 @@ public:
 	void DrawObject(VRAM_OBJECT objectMatrix, ID3D11Buffer **objectVertexBuffer, ID3D11Buffer **objectIndexBuffer, std::vector<int> Index, ID3D11ShaderResourceView** shaderResourceView = NULL);
 	void DrawBillboardStuff();
 	void DrawBillboards();
+	void DrawMoss();
 	bool ShutDown();
 	void GravityStuff();
 	void BallStuff();
@@ -731,6 +740,27 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	billboard.billboardIndicies[4] = 1;
 	billboard.billboardIndicies[5] = 3;
 #pragma endregion
+
+#pragma region moss
+	mossVertices[0].pos = { -2.5f, 5.0f, 0.0f };
+	mossVertices[1].pos = {  2.5f, 5.0f, 0.0f };
+	mossVertices[2].pos = { -2.5f, 0.0f, 0.0f };
+	mossVertices[3].pos = {  2.5f, 0.0f, 0.0f };
+	mossVertices[0].uvw = { 0.0f, 0.0f, 0.0f };
+	mossVertices[1].uvw = { 1.0f, 0.0f, 0.0f };
+	mossVertices[2].uvw = { 0.0f, 1.0f, 0.0f };
+	mossVertices[3].uvw = { 1.0f, 1.0f, 0.0f };
+	mossVertices[0].nrm = { 0.0f, 0.0f, 1.0f };
+	mossVertices[1].nrm = { 0.0f, 0.0f, 1.0f };
+	mossVertices[2].nrm = { 0.0f, 0.0f, 1.0f };
+	mossVertices[3].nrm = { 0.0f, 0.0f, 1.0f };
+	mossIndicies[0] = 0;
+	mossIndicies[1] = 1;
+	mossIndicies[2] = 2;
+	mossIndicies[3] = 2;
+	mossIndicies[4] = 1;
+	mossIndicies[5] = 3;
+#pragma endregion
 #pragma region plane
 	planeVertices[0].pos = { -225.0f, 0.0f, 75.0f };
 	planeVertices[1].pos = { 225.0f, 0.0f, 75.0f };
@@ -1043,6 +1073,41 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	bufferDesc2 = {};
 	ZeroMemory(&bufferDesc2, sizeof(bufferDesc2));
 	bufferDesc2.Usage = D3D11_USAGE_IMMUTABLE;
+	bufferDesc2.ByteWidth = sizeof(mossVertices);
+	bufferDesc2.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+	bufferDesc2.CPUAccessFlags = NULL;
+
+	InitData2 = {};
+	InitData2.pSysMem = mossVertices;
+	InitData2.SysMemPitch = 0;
+	InitData2.SysMemSlicePitch = 0;
+
+	dev->CreateBuffer(&bufferDesc2, &InitData2, &mossVBuffer);
+
+#pragma endregion
+#pragma region indexBuffer
+	// TODO: PART 2 STEP 3a
+	iBufferDesc2 = {};
+	ZeroMemory(&iBufferDesc2, sizeof(iBufferDesc2));
+
+	iBufferDesc2.Usage = D3D11_USAGE_DYNAMIC;
+	iBufferDesc2.ByteWidth = sizeof(mossIndicies);
+	iBufferDesc2.BindFlags = D3D11_BIND_INDEX_BUFFER;
+	iBufferDesc2.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+
+	iInitData2 = {};
+	iInitData2.pSysMem = mossIndicies;
+	iInitData2.SysMemPitch = 0;
+	iInitData2.SysMemSlicePitch = 0;
+
+	dev->CreateBuffer(&iBufferDesc2, &iInitData2, &mossIBuffer);
+
+#pragma endregion
+#pragma region vertexBuffer
+	// TODO: PART 2 STEP 3a
+	bufferDesc2 = {};
+	ZeroMemory(&bufferDesc2, sizeof(bufferDesc2));
+	bufferDesc2.Usage = D3D11_USAGE_IMMUTABLE;
 	bufferDesc2.ByteWidth = sizeof(billboard.billboardVertices);
 	bufferDesc2.BindFlags = D3D11_BIND_VERTEX_BUFFER;
 	bufferDesc2.CPUAccessFlags = NULL;
@@ -1229,6 +1294,7 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	loadThreads.push_back(std::thread(&DEMO_APP::LoadTextures, this, dev, L"Assets/Textures/grass.dds", &grassResource));
 	loadThreads.push_back(std::thread(&DEMO_APP::LoadTextures, this, dev, L"Assets/Textures/batmobile.dds", &objectResource[4]));
 	loadThreads.push_back(std::thread(&DEMO_APP::LoadTextures, this, dev, L"Assets/Textures/BlackWarGreymon.dds", &objectResource[5]));
+	loadThreads.push_back(std::thread(&DEMO_APP::LoadTextures, this, dev, L"Assets/Textures/moss.dds", &mossResource));
 	//LoadTextures(dev, L"Assets/Textures/skybox1.dds", NULL, &skyBoxResource);
 	//CreateDDSTextureFromFile(dev, L"Assets/Textures/skybox1.dds", NULL, &skyBoxResource);
 	//CreateDDSTextureFromFile(dev, L"Assets/Textures/Tunnel.dds", NULL, &objectResource[0]);
@@ -1350,10 +1416,10 @@ void DEMO_APP::GravityStuff()
 	else if (Jumping && InvWorld.r[3].m128_f32[1] > 9.0f)
 	{
 		JumpTimer += (float)pXtime.Delta();
-		XMMATRIX translationY = XMMatrixTranslation(0, -25.0f * (float)pXtime.Delta(), 0);
+		XMMATRIX translationY = XMMatrixTranslation(0, (gravity - 15)  * (float)pXtime.Delta(), 0);
 		InvWorld = InvWorld * translationY;
 		worldWatever3 = XMMatrixInverse(NULL, InvWorld);
-		if (JumpTimer >= 1.5f)
+		if (InvWorld.r[3].m128_f32[1] <= 9.0f)
 		{
 			Jumping = false;
 			JumpTimer = 0.0f;
@@ -1374,7 +1440,7 @@ void DEMO_APP::BallStuff()
 		float ballHeight = ballMatrix.r[3].m128_f32[1];
 		XMFLOAT3 ballDirection;
 		XMStoreFloat3(&ballDirection, dodgeballDir[0]);
-		ballDirection.y -= 0.981f * (float)pXtime.Delta();
+		ballDirection.y += (gravity / 10) * (float)pXtime.Delta();
 		dodgeballDir[0] = XMLoadFloat3(&ballDirection);
 		ballMatrix = ballMatrix * (XMMatrixTranslation(ballDirection.x * (float)pXtime.Delta() * 125, ballDirection.y * (float)pXtime.Delta() * 55, ballDirection.z * (float)pXtime.Delta() * 125));
 		XMMATRIX rotx, roty, rotz;
@@ -1427,7 +1493,7 @@ void DEMO_APP::BallStuff2()
 		float ballHeight = ballMatrix.r[3].m128_f32[1];
 		XMFLOAT3 ballDirection;
 		XMStoreFloat3(&ballDirection, dodgeballDir[1]);
-		ballDirection.y -= 0.981f * (float)pXtime.Delta();
+		ballDirection.y += (gravity / 10) * (float)pXtime.Delta();
 		dodgeballDir[1] = XMLoadFloat3(&ballDirection);
 		ballMatrix = ballMatrix * (XMMatrixTranslation(ballDirection.x * (float)pXtime.Delta() * 125, ballDirection.y * (float)pXtime.Delta() * 55, ballDirection.z * (float)pXtime.Delta() * 125));
 		XMMATRIX rotx, roty, rotz;
@@ -1471,7 +1537,7 @@ void DEMO_APP::BallStuff2()
 void DEMO_APP::SunStuff()
 {
 	XMMATRIX sunMatrix = XMLoadFloat4x4(&sun.worldMatrix);
-	sunMatrix = sunMatrix * XMMatrixRotationX(XMConvertToRadians((float)pXtime.Delta() * 20));
+	sunMatrix = sunMatrix * XMMatrixRotationX(XMConvertToRadians((float)pXtime.Delta() * sunSpeed));
 	XMStoreFloat4x4(&sun.worldMatrix, sunMatrix);
 	XMVECTOR sunDir = sunMatrix.r[3];
 	sunDir = XMVector4Normalize(sunDir);
@@ -1511,8 +1577,9 @@ void DEMO_APP::SunStuff()
 }
 void DEMO_APP::CarStuff(VRAM_OBJECT* matrix, bool Inverted, float speed)
 {
+
 	XMMATRIX localMatrix = XMLoadFloat4x4(&matrix->worldMatrix);
-	float inc = speed;
+	float inc = speed * carSpeed;
 	if (Inverted)
 		inc *= -1;
 
@@ -1772,6 +1839,36 @@ void DEMO_APP::Input()
 	}
 	else
 		mouseAnchored = false;
+	if (GetAsyncKeyState(VK_NUMPAD8))
+	{
+		carSpeed += 0.1f * (float)pXtime.Delta();
+	}
+	if (GetAsyncKeyState(VK_NUMPAD2))
+	{
+		if (carSpeed > 0.0f)
+		{
+			carSpeed -= 0.1f * (float)pXtime.Delta();
+		}
+	}
+	if (GetAsyncKeyState(VK_NUMPAD4))
+	{
+		sunSpeed -= 6.0f * (float)pXtime.Delta();
+	}
+	if (GetAsyncKeyState(VK_NUMPAD6))
+	{
+		sunSpeed += 6.0f * (float)pXtime.Delta();
+	}
+	if (GetAsyncKeyState('I'))
+	{
+		gravity -= 4.0f * (float)pXtime.Delta();
+	}
+	if (GetAsyncKeyState('K'))
+	{
+		if (gravity < 0.0f)
+		{
+			gravity += 4.0f * (float)pXtime.Delta();
+		}
+	}
 	if (GetAsyncKeyState(VK_SPACE))
 	{
 		if (!Jumping)
@@ -2042,6 +2139,42 @@ void DEMO_APP::DrawBillboards()
 
 	deffCon->DrawIndexed(6, 0, 0);
 }
+void DEMO_APP::DrawMoss()
+{
+	UINT strides = sizeof(SIMPLE_VERTEX);
+	UINT offset = 0;
+	deffCon->PSSetShaderResources(0, 1, &mossResource);
+	deffCon->IASetVertexBuffers(0, 1, &mossVBuffer, &strides, &offset);
+	deffCon->IASetIndexBuffer(mossIBuffer, DXGI_FORMAT_R32_UINT, 0);
+	XMFLOAT4X4 view;
+	XMStoreFloat4x4(&view, XMMatrixScaling(12, 15, 1) * XMMatrixTranslation(0, 5, 75));
+	D3D11_MAPPED_SUBRESOURCE resourceobj;
+	memset(&resourceobj, 0, sizeof(D3D11_MAPPED_SUBRESOURCE));
+	deffCon->Map(ConstBuffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &resourceobj);
+	memcpy_s(resourceobj.pData, sizeof(view), &view, sizeof(view));
+	deffCon->Unmap(ConstBuffer, NULL);
+
+
+	deffCon->DrawIndexed(6, 0, 0);
+	XMStoreFloat4x4(&view, XMMatrixScaling(12, 15, 1) * XMMatrixTranslation(0, 5, 80));
+	resourceobj = {};
+	memset(&resourceobj, 0, sizeof(D3D11_MAPPED_SUBRESOURCE));
+	deffCon->Map(ConstBuffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &resourceobj);
+	memcpy_s(resourceobj.pData, sizeof(view), &view, sizeof(view));
+	deffCon->Unmap(ConstBuffer, NULL);
+
+
+	deffCon->DrawIndexed(6, 0, 0);
+	XMStoreFloat4x4(&view, XMMatrixScaling(12, 15, 1) * XMMatrixTranslation(0, 5, 85));
+	resourceobj = {};
+	memset(&resourceobj, 0, sizeof(D3D11_MAPPED_SUBRESOURCE));
+	deffCon->Map(ConstBuffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &resourceobj);
+	memcpy_s(resourceobj.pData, sizeof(view), &view, sizeof(view));
+	deffCon->Unmap(ConstBuffer, NULL);
+
+
+	deffCon->DrawIndexed(6, 0, 0);
+}
 bool DEMO_APP::Run()
 {
 	std::vector<std::thread> drawThreads;
@@ -2102,7 +2235,7 @@ bool DEMO_APP::Run()
 	deffCon->Unmap(ConstSpotLightBuffer, NULL);
 	
 	DrawBillboards();
-
+	DrawMoss();
 	for (size_t i = 0; i < 2; i++)
 	{
 		//drawThreads.push_back(std::thread(&DEMO_APP::DrawObject, this, tunnel[i], &pObjectVertexBuffer[0], &pObjectIndexBuffer[0], objIndex[0], &objectResource[0]));
@@ -2169,6 +2302,7 @@ bool DEMO_APP::Run()
 	deffCon->Unmap(SceneBuffer, NULL);
 
 	DrawBillboards();
+	DrawMoss();
 
 	for (size_t i = 0; i < 2; i++)
 	{
@@ -2286,6 +2420,9 @@ bool DEMO_APP::ShutDown()
 	billboard.zbillboardStencil->Release();
 	billboard.pBoardVertexBuffer->Release();
 	billboard.pBoardIndexBuffer->Release();
+	mossResource->Release();
+	mossVBuffer->Release();
+	mossIBuffer->Release();
 	blendState->Release();
 	backbuffer->Release();
 	zBuffer->Release();
