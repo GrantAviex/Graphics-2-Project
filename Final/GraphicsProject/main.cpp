@@ -857,7 +857,6 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 
 #pragma region CreateSwapChain
 	DXGI_SWAP_CHAIN_DESC scd;
-
 	ZeroMemory(&scd, sizeof(DXGI_SWAP_CHAIN_DESC));
 	scd.BufferCount = 1;
 	scd.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
